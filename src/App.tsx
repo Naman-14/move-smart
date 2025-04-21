@@ -5,9 +5,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect, useState } from "react";
-import Index from "./pages/Index";
+import Homepage from "./pages/Homepage";
 import NotFound from "./pages/NotFound";
-import Article from "./pages/Article";
+import ArticleView from "./pages/ArticleView";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Cookies from "./pages/Cookies";
@@ -53,16 +53,20 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Homepage />} />
             <Route path="/archive" element={<NotFound />} />
+            <Route path="/startups" element={<NotFound />} />
+            <Route path="/startups/:category" element={<NotFound />} />
             <Route path="/case-studies" element={<NotFound />} />
+            <Route path="/case-studies/:category" element={<NotFound />} />
+            <Route path="/funding" element={<NotFound />} />
+            <Route path="/ai" element={<NotFound />} />
             <Route path="/about" element={<NotFound />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<Cookies />} />
-            <Route path="/article/:slug" element={<Article />} />
+            <Route path="/article/:slug" element={<ArticleView />} />
             <Route path="/startup/:slug" element={<NotFound />} />
-            <Route path="/startups" element={<NotFound />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
