@@ -14,7 +14,7 @@ import NewsletterForm from '@/components/NewsletterForm';
 const startupData = {
   name: 'Anthropic',
   tagline: 'Building reliable, interpretable, and steerable AI systems',
-  description: 'Anthropic is an AI safety company that's working on developing reliable, interpretable, and steerable AI systems. Founded by former members of OpenAI, the company is focused on research aimed at building AI that's aligned with human values and can be trusted to act safely and beneficially.',
+  description: 'Anthropic is an AI safety company that\'s working on developing reliable, interpretable, and steerable AI systems. Founded by former members of OpenAI, the company is focused on research aimed at building AI that\'s aligned with human values and can be trusted to act safely and beneficially.',
   longDescription: `
     <p class="text-lg mb-4">Founded in 2021, Anthropic emerged as a response to growing concerns about the safety and alignment challenges of increasingly powerful AI systems. The company was founded by Dario Amodei, former VP of Research at OpenAI, along with several other former OpenAI researchers who shared a vision for developing AI systems with better safety properties.</p>
     
