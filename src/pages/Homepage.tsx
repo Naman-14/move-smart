@@ -1,15 +1,16 @@
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import HeroCarousel from '@/components/HeroCarousel';
 import CategoryTabs from '@/components/CategoryTabs';
 import ArticleCard from '@/components/ArticleCard';
 import TrendingSidebar from '@/components/TrendingSidebar';
+import ArticleCarousel from '@/components/ArticleCarousel';
+import FeaturedArticle from '@/components/FeaturedArticle';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import NewsletterForm from '@/components/NewsletterForm';
-import { Search } from 'lucide-react';
+import EnhancedNewsletterForm from '@/components/EnhancedNewsletterForm';
+import { Search, ArrowRight } from 'lucide-react';
 
 // Mock data
 const heroSlides = [
@@ -134,6 +135,97 @@ const trendingArticles = [
   }
 ];
 
+const editorsPicksArticles = [
+  {
+    id: '1',
+    title: 'The Future of Remote Work: How Tech Companies Are Adapting',
+    excerpt: 'An in-depth analysis of how the tech industry is reimagining workplace culture and collaboration in a distributed world.',
+    imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=2070&auto=format&fit=crop',
+    date: 'April 21, 2025',
+    category: 'Analysis',
+    slug: 'future-remote-work'
+  },
+  {
+    id: '2',
+    title: 'Bootstrapped to $10M: Lessons from Five Founders Who Skipped VC Funding',
+    excerpt: 'Meet the entrepreneurs who built significant companies without raising venture capital and the strategies they used to succeed.',
+    imageUrl: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?q=80&w=2070&auto=format&fit=crop',
+    date: 'April 19, 2025', 
+    category: 'Founders',
+    slug: 'bootstrapped-success-stories'
+  },
+  {
+    id: '3',
+    title: 'The AI Governance Gap: Policy Challenges for the Next Decade',
+    excerpt: 'As AI capabilities accelerate, policymakers worldwide struggle to create effective oversight frameworks. Here's what's at stake.',
+    imageUrl: 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?q=80&w=2070&auto=format&fit=crop',
+    date: 'April 18, 2025',
+    category: 'Policy',
+    slug: 'ai-governance-challenges'
+  }
+];
+
+const categoryFeatured = {
+  ai: [
+    {
+      id: '1',
+      title: 'The Open-Source AI Revolution: How Competing Models Are Democratizing Advanced AI',
+      excerpt: 'From Llama to Mistral, open-source models are challenging the dominance of proprietary AI systems like GPT-4 and Claude.',
+      imageUrl: 'https://images.unsplash.com/photo-1677442135132-141996581d28?q=80&w=2070&auto=format&fit=crop',
+      date: 'April 21, 2025',
+      category: 'AI',
+      slug: 'open-source-ai-revolution'
+    },
+    {
+      id: '2',
+      title: 'AI Safety Research: The Critical Path to Beneficial AGI',
+      excerpt: 'How leading labs are working to ensure increasingly powerful AI systems remain aligned with human values and intentions.',
+      imageUrl: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=2964&auto=format&fit=crop',
+      date: 'April 20, 2025',
+      category: 'AI',
+      slug: 'ai-safety-research'
+    },
+    {
+      id: '3',
+      title: 'Enterprise AI Adoption: Beyond the Chatbot',
+      excerpt: 'How innovative companies are implementing AI to transform core business processes and create sustainable competitive advantages.',
+      imageUrl: 'https://images.unsplash.com/photo-1535378917042-10a22c95931a?q=80&w=2066&auto=format&fit=crop',
+      date: 'April 18, 2025',
+      category: 'AI',
+      slug: 'enterprise-ai-adoption'
+    }
+  ],
+  funding: [
+    {
+      id: '1',
+      title: 'Climate Tech Funding Surges: $40B Invested in Q1 2025',
+      excerpt: 'Venture capital flows into climate solutions reach record highs as investors bet on decarbonization technologies.',
+      imageUrl: 'https://images.unsplash.com/photo-1569511166584-c11efb436e27?q=80&w=2069&auto=format&fit=crop',
+      date: 'April 20, 2025',
+      category: 'Funding',
+      slug: 'climate-tech-funding-surge'
+    },
+    {
+      id: '2',
+      title: 'Biotech Startups Secure $15B in Series A Rounds',
+      excerpt: 'Early-stage biotech companies focused on longevity and precision medicine attract unprecedented investor interest.',
+      imageUrl: 'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?q=80&w=2070&auto=format&fit=crop',
+      date: 'April 19, 2025',
+      category: 'Funding',
+      slug: 'biotech-series-a-rounds'
+    },
+    {
+      id: '3',
+      title: 'Tiger Global Returns to VC with New $5B Fund',
+      excerpt: 'After a period of reduced activity, the influential investment firm unveils a new strategy targeting AI infrastructure and enterprise software.',
+      imageUrl: 'https://images.unsplash.com/photo-1604594849809-dfedbc827105?q=80&w=2070&auto=format&fit=crop',
+      date: 'April 17, 2025',
+      category: 'Funding',
+      slug: 'tiger-global-new-fund'
+    }
+  ]
+};
+
 const Homepage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
 
@@ -181,6 +273,106 @@ const Homepage = () => {
                 ))}
               </div>
               
+              {/* Editor's Picks Section */}
+              <div className="mt-12 mb-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Editor's Picks</h2>
+                  <Link to="/editors-picks" className="flex items-center text-parrot-green hover:underline">
+                    <span>View all</span>
+                    <ArrowRight size={16} className="ml-1" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {editorsPicksArticles.map(article => (
+                    <ArticleCard key={article.id} {...article} />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Featured Category: AI */}
+              <div className="mt-12 mb-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">AI Innovation</h2>
+                  <Link to="/ai" className="flex items-center text-parrot-green hover:underline">
+                    <span>More AI stories</span>
+                    <ArrowRight size={16} className="ml-1" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {categoryFeatured.ai.map(article => (
+                    <ArticleCard key={article.id} {...article} />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Featured Category: Funding */}
+              <div className="mt-12 mb-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Latest Funding</h2>
+                  <Link to="/funding" className="flex items-center text-parrot-green hover:underline">
+                    <span>More funding news</span>
+                    <ArrowRight size={16} className="ml-1" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {categoryFeatured.funding.map(article => (
+                    <ArticleCard key={article.id} {...article} />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Startup Profiles Carousel */}
+              <div className="mt-12 mb-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Startup Profiles</h2>
+                  <Link to="/startups" className="flex items-center text-parrot-green hover:underline">
+                    <span>Explore all startups</span>
+                    <ArrowRight size={16} className="ml-1" />
+                  </Link>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl">
+                  <ArticleCarousel
+                    title=""
+                    articles={[
+                      {
+                        title: "Anthropic: Building AI Systems That Understand Human Values",
+                        excerpt: "Founded by former OpenAI researchers, Anthropic focuses on developing safe and interpretable AI systems.",
+                        imageUrl: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=2964&auto=format&fit=crop",
+                        date: "Founded: 2021",
+                        category: "AI Safety",
+                        slug: "startup/anthropic"
+                      },
+                      {
+                        title: "Stripe: Revolutionizing Internet Commerce Infrastructure",
+                        excerpt: "How Stripe built the payments platform powering millions of businesses worldwide.",
+                        imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop",
+                        date: "Founded: 2010",
+                        category: "Fintech",
+                        slug: "startup/stripe"
+                      },
+                      {
+                        title: "Notion: The All-in-One Workspace for Teams",
+                        excerpt: "Notion's journey from struggling startup to productivity powerhouse valued at over $10B.",
+                        imageUrl: "https://images.unsplash.com/photo-1573164574230-db1d5e960238?q=80&w=2069&auto=format&fit=crop",
+                        date: "Founded: 2013",
+                        category: "Productivity",
+                        slug: "startup/notion"
+                      }
+                    ]}
+                    autoSlideInterval={6000}
+                    showControls={true}
+                  />
+                  
+                  <div className="text-center mt-6">
+                    <Button asChild>
+                      <Link to="/startups">
+                        Explore All Startup Profiles
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="text-center mt-8">
                 <Button variant="outline" className="border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800">
                   Load More Stories
@@ -204,7 +396,7 @@ const Homepage = () => {
                 Join thousands of founders, investors, and tech enthusiasts receiving our weekly newsletter with the latest startup insights.
               </p>
               <div className="max-w-md mx-auto">
-                <NewsletterForm />
+                <EnhancedNewsletterForm />
               </div>
             </div>
           </div>

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronRight, Globe, MapPin, Calendar, Users, DollarSign, BarChart2, ArrowRight, GitBranch, Target, ThumbsUp, Bookmark, Share2 } from 'lucide-react';

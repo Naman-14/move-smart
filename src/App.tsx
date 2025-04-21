@@ -11,6 +11,7 @@ import ArticleView from "./pages/ArticleView";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Cookies from "./pages/Cookies";
+import StartupProfile from "./pages/StartupProfile";
 
 const queryClient = new QueryClient();
 
@@ -56,7 +57,9 @@ const App = () => {
             <Route path="/" element={<Homepage />} />
             <Route path="/archive" element={<NotFound />} />
             <Route path="/startups" element={<NotFound />} />
+            <Route path="/startup/:slug" element={<StartupProfile />} />
             <Route path="/startups/:category" element={<NotFound />} />
+            <Route path="/editors-picks" element={<NotFound />} />
             <Route path="/case-studies" element={<NotFound />} />
             <Route path="/case-studies/:category" element={<NotFound />} />
             <Route path="/funding" element={<NotFound />} />
@@ -66,7 +69,6 @@ const App = () => {
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/article/:slug" element={<ArticleView />} />
-            <Route path="/startup/:slug" element={<NotFound />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,12 +13,12 @@ import {
   navigationMenuTriggerStyle
 } from '@/components/ui/navigation-menu';
 import { cn } from '@/lib/utils';
+import AISearch from './AISearch';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   
-  // Handle scroll effect
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 10) {
@@ -45,12 +44,10 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-8">
-            {/* Logo */}
             <Link to="/" className="flex items-center">
               <span className="logo text-2xl font-bold text-parrot-green">MoveSmart</span>
             </Link>
             
-            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-1">
               <NavigationMenu>
                 <NavigationMenuList>
@@ -173,25 +170,23 @@ const Header = () => {
             </nav>
           </div>
 
-          {/* Right side actions */}
           <div className="flex items-center space-x-3">
-            {/* Search - desktop only */}
             <div className="hidden md:block relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input 
-                type="search" 
-                placeholder="Search..."
-                className="w-48 pl-10 pr-4 py-1.5 text-sm border border-gray-200 dark:border-gray-800 rounded-full focus:outline-none focus:ring-1 focus:ring-parrot-green dark:bg-gray-900"
-              />
+              <AISearch />
             </div>
             
             <ThemeToggle />
+            
+            <Link to="/startups" className="hidden md:flex mr-2">
+              <Button variant="outline" className="border-parrot-green text-parrot-green hover:bg-parrot-green/10">
+                Explore Startups
+              </Button>
+            </Link>
             
             <Button className="hidden md:flex bg-parrot-green hover:bg-parrot-green/90 text-white">
               Subscribe
             </Button>
             
-            {/* Mobile Menu Button */}
             <button 
               className="md:hidden text-gray-500 hover:text-parrot-green dark:text-gray-300 dark:hover:text-parrot-green" 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -203,7 +198,6 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
       {isMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-900 p-4 pt-0 border-b border-gray-100 dark:border-gray-800 shadow-md animate-fade-in-up">
           <nav className="flex flex-col space-y-4">
@@ -212,7 +206,7 @@ const Header = () => {
             <div className="border-t border-gray-100 dark:border-gray-800 pt-2">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Startups</p>
               <div className="pl-2 space-y-2">
-                <Link to="/startups" className="block py-1.5 text-gray-800 dark:text-gray-200 hover:text-parrot-green" onClick={() => setIsMenuOpen(false)}>All Startups</Link>
+                <Link to="/startups" className="block py-1.5 text-gray-800 dark:text-gray-200 hover:text-parrot-green" onClick={() => setIsMenuOpen(false)}>Explore Startups</Link>
                 <Link to="/startups/featured" className="block py-1.5 text-gray-800 dark:text-gray-200 hover:text-parrot-green" onClick={() => setIsMenuOpen(false)}>Featured Startups</Link>
                 <Link to="/startups/unicorns" className="block py-1.5 text-gray-800 dark:text-gray-200 hover:text-parrot-green" onClick={() => setIsMenuOpen(false)}>Unicorns</Link>
                 <Link to="/startups/early-stage" className="block py-1.5 text-gray-800 dark:text-gray-200 hover:text-parrot-green" onClick={() => setIsMenuOpen(false)}>Early-Stage</Link>
