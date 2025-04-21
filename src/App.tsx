@@ -13,6 +13,7 @@ import Terms from "./pages/Terms";
 import Cookies from "./pages/Cookies";
 import StartupProfile from "./pages/StartupProfile";
 
+// Create a QueryClient instance outside of the component
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -49,31 +50,33 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Homepage />} />
-            <Route path="/archive" element={<NotFound />} />
-            <Route path="/startups" element={<NotFound />} />
-            <Route path="/startup/:slug" element={<StartupProfile />} />
-            <Route path="/startups/:category" element={<NotFound />} />
-            <Route path="/editors-picks" element={<NotFound />} />
-            <Route path="/case-studies" element={<NotFound />} />
-            <Route path="/case-studies/:category" element={<NotFound />} />
-            <Route path="/funding" element={<NotFound />} />
-            <Route path="/ai" element={<NotFound />} />
-            <Route path="/about" element={<NotFound />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/cookies" element={<Cookies />} />
-            <Route path="/article/:slug" element={<ArticleView />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <div className="app-container">
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Homepage />} />
+              <Route path="/archive" element={<NotFound />} />
+              <Route path="/startups" element={<NotFound />} />
+              <Route path="/startup/:slug" element={<StartupProfile />} />
+              <Route path="/startups/:category" element={<NotFound />} />
+              <Route path="/editors-picks" element={<NotFound />} />
+              <Route path="/case-studies" element={<NotFound />} />
+              <Route path="/case-studies/:category" element={<NotFound />} />
+              <Route path="/funding" element={<NotFound />} />
+              <Route path="/ai" element={<NotFound />} />
+              <Route path="/about" element={<NotFound />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/cookies" element={<Cookies />} />
+              <Route path="/article/:slug" element={<ArticleView />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </div>
     </QueryClientProvider>
   );
 };
