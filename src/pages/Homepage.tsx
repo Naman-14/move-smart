@@ -35,7 +35,7 @@ const heroSlides = [
   },
   {
     id: '3',
-    title: 'Inside Notion\'s Product Strategy: How They Built a $10B Company',
+    title: "Inside Notion's Product Strategy: How They Built a $10B Company",
     excerpt: 'An exclusive look at how Notion evolved from a struggling startup to a productivity powerhouse valued at over $10 billion.',
     imageUrl: 'https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=2070&auto=format&fit=crop',
     category: 'Case Study',
@@ -77,7 +77,7 @@ const latestArticles = [
   },
   {
     id: '3',
-    title: 'OpenAI's New Fund Invests $1B in AI Safety Research and Alignment',
+    title: "OpenAI's New Fund Invests $1B in AI Safety Research and Alignment",
     excerpt: 'The creator of ChatGPT announces a major initiative to support research on AI alignment, safety, and beneficial AGI development.',
     imageUrl: 'https://images.unsplash.com/photo-1677442135132-141996581d28?q=80&w=2070&auto=format&fit=crop',
     date: 'April 17, 2025',
@@ -86,7 +86,7 @@ const latestArticles = [
   },
   {
     id: '4',
-    title: 'Figma's Path to a $20B Acquisition: Lessons from the Design Leader',
+    title: "Figma's Path to a $20B Acquisition: Lessons from the Design Leader",
     excerpt: 'How Figma revolutionized collaborative design and became Adobe\'s largest acquisition target in history.',
     imageUrl: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?q=80&w=2964&auto=format&fit=crop',
     date: 'April 16, 2025',
@@ -98,8 +98,8 @@ const latestArticles = [
 const trendingArticles = [
   {
     id: '1',
-    title: 'Y Combinator's Winter 2025 Batch: Top 10 Startups to Watch',
-    excerpt: 'An exclusive look at the most promising startups from YC's latest cohort.',
+    title: "Y Combinator's Winter 2025 Batch: Top 10 Startups to Watch",
+    excerpt: "An exclusive look at the most promising startups from YC's latest cohort.",
     imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=2070&auto=format&fit=crop',
     date: 'April 20, 2025',
     category: 'Startups',
@@ -107,7 +107,7 @@ const trendingArticles = [
   },
   {
     id: '2',
-    title: 'DeepMind's New Multimodal Model Achieves Breakthrough in Scientific Discovery',
+    title: "DeepMind's New Multimodal Model Achieves Breakthrough in Scientific Discovery",
     excerpt: 'The Google subsidiary unveils an AI system that can propose novel scientific hypotheses.',
     imageUrl: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=2964&auto=format&fit=crop',
     date: 'April 19, 2025',
@@ -125,7 +125,7 @@ const trendingArticles = [
   },
   {
     id: '4',
-    title: 'The Tech Behind Stripe's Success Story',
+    title: "The Tech Behind Stripe's Success Story",
     excerpt: 'How Stripe revolutionized online payments and became the backbone of internet commerce.',
     imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
     date: 'April 17, 2025',

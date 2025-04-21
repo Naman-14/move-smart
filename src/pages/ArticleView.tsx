@@ -75,7 +75,7 @@ const articleData = {
     },
     {
       id: '3',
-      title: 'Figma's Path to a $20B Acquisition: Lessons from the Design Leader',
+      title: "Figma's Path to a $20B Acquisition: Lessons from the Design Leader",
       excerpt: 'How Figma revolutionized collaborative design and became Adobe\'s largest acquisition target in history.',
       imageUrl: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?q=80&w=2964&auto=format&fit=crop',
       date: 'April 16, 2025',
@@ -84,8 +84,8 @@ const articleData = {
     },
     {
       id: '4',
-      title: 'How Slack Built a $27B Business Through Product-Led Growth',
-      excerpt: 'Examining how Slack's focus on product experience and viral adoption changed B2B software marketing.',
+      title: "How Slack Built a $27B Business Through Product-Led Growth",
+      excerpt: "Examining how Slack's focus on product experience and viral adoption changed B2B software marketing.",
       imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?q=80&w=2940&auto=format&fit=crop',
       date: 'April 12, 2025',
       category: 'Case Study',
