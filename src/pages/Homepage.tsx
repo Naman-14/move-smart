@@ -150,14 +150,14 @@ const editorsPicksArticles = [
     title: 'Bootstrapped to $10M: Lessons from Five Founders Who Skipped VC Funding',
     excerpt: 'Meet the entrepreneurs who built significant companies without raising venture capital and the strategies they used to succeed.',
     imageUrl: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?q=80&w=2070&auto=format&fit=crop',
-    date: 'April 19, 2025', 
+    date: 'April 19, 2025',
     category: 'Founders',
     slug: 'bootstrapped-success-stories'
   },
   {
     id: '3',
     title: 'The AI Governance Gap: Policy Challenges for the Next Decade',
-    excerpt: 'As AI capabilities accelerate, policymakers worldwide struggle to create effective oversight frameworks. Here's what's at stake.',
+    excerpt: 'As AI capabilities accelerate, policymakers worldwide struggle to create effective oversight frameworks. Here\'s what\'s at stake.',
     imageUrl: 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?q=80&w=2070&auto=format&fit=crop',
     date: 'April 18, 2025',
     category: 'Policy',
