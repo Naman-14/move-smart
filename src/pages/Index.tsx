@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import NewsletterModal from '@/components/NewsletterModal';
@@ -8,6 +8,7 @@ import NewsletterForm from '@/components/NewsletterForm';
 import FeaturedArticle from '@/components/FeaturedArticle';
 import ArticleCard from '@/components/ArticleCard';
 import StartupCard from '@/components/StartupCard';
+import ArticleCarousel from '@/components/ArticleCarousel';
 import ContentFilter, { ContentFilters } from '@/components/ContentFilter';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
@@ -46,6 +47,41 @@ const mockArticles = [
     date: 'March 28, 2023',
     category: 'Market Analysis',
     slug: 'fintech-emerging-markets'
+  }
+];
+
+const trendingArticles = [
+  {
+    title: 'How Plaid Built the Fintech API Infrastructure',
+    excerpt: 'A deep dive into how Plaid created the essential infrastructure that powers thousands of fintech applications.',
+    imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
+    date: 'April 18, 2023',
+    category: 'Tech Deep Dive',
+    slug: 'plaid-api-infrastructure'
+  },
+  {
+    title: 'The Tech Behind Stripe\'s Success Story',
+    excerpt: 'How Stripe revolutionized online payments and became the backbone of internet commerce.',
+    imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
+    date: 'April 14, 2023',
+    category: 'Case Study',
+    slug: 'stripe-success-story'
+  },
+  {
+    title: 'Figma\'s Path to a $20B Valuation',
+    excerpt: 'The design tool that changed collaboration and caught Adobe\'s attention with a revolutionary product approach.',
+    imageUrl: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=2940&auto=format&fit=crop',
+    date: 'April 8, 2023',
+    category: 'Growth Analysis',
+    slug: 'figma-valuation'
+  },
+  {
+    title: 'How Discord Built a Community-First Platform',
+    excerpt: 'The evolution of Discord from gaming chat to a versatile community platform worth billions.',
+    imageUrl: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?q=80&w=2940&auto=format&fit=crop',
+    date: 'April 2, 2023',
+    category: 'Community Building',
+    slug: 'discord-community'
   }
 ];
 
@@ -123,18 +159,18 @@ const Index = () => {
   });
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen dark:bg-gray-950 dark:text-white">
       <Header />
       
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="bg-gradient-to-b from-parrot-soft-green to-white py-16 md:py-24">
+        <section className="bg-gradient-to-b from-parrot-soft-green to-white dark:from-brand-dark dark:to-gray-900 py-16 md:py-24">
           <div className="container mx-auto px-4">
             <div className="max-w-2xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight dark:text-white">
                 The Global Tech <span className="text-parrot-green">Startup Pulse</span>
               </h1>
-              <p className="text-xl text-gray-700 mb-8">
+              <p className="text-xl text-gray-700 dark:text-gray-300 mb-8">
                 Get the latest tech startup news, case studies, funding updates, and innovative ideas from around the world.
               </p>
               <div className="max-w-md mx-auto">
@@ -145,15 +181,37 @@ const Index = () => {
         </section>
         
         {/* Latest Articles Section */}
-        <section className="py-16 bg-gray-50">
+        <section className="py-16 bg-gray-50 dark:bg-gray-900">
           <div className="container mx-auto px-4">
-            <h2 className="section-title text-center">Latest Insights</h2>
+            <h2 className="text-3xl font-bold mb-8 text-center">Latest Insights</h2>
             
             <ContentFilter 
-              categories={filterCategories}
-              regions={filterRegions}
-              fundingStages={filterFundingStages}
-              tags={filterTags}
+              categories={[
+                { id: 'tech-trends', label: 'Tech Trends' },
+                { id: 'case-study', label: 'Case Study' },
+                { id: 'funding-news', label: 'Funding News' },
+                { id: 'market-analysis', label: 'Market Analysis' }
+              ]}
+              regions={[
+                { id: 'north-america', label: 'North America' },
+                { id: 'europe', label: 'Europe' },
+                { id: 'asia-pacific', label: 'Asia Pacific' },
+                { id: 'latin-america', label: 'Latin America' }
+              ]}
+              fundingStages={[
+                { id: 'seed', label: 'Seed' },
+                { id: 'series-a', label: 'Series A' },
+                { id: 'series-b', label: 'Series B' },
+                { id: 'series-c', label: 'Series C' },
+                { id: 'late-stage', label: 'Late Stage' }
+              ]}
+              tags={[
+                { id: 'ai', label: 'AI' },
+                { id: 'saas', label: 'SaaS' },
+                { id: 'fintech', label: 'FinTech' },
+                { id: 'health-tech', label: 'Health Tech' },
+                { id: 'clean-tech', label: 'Clean Tech' }
+              ]}
               onFilterChange={setFilters}
             />
             
@@ -161,6 +219,13 @@ const Index = () => {
             <div className="mb-12">
               <FeaturedArticle {...mockFeaturedArticle} />
             </div>
+            
+            {/* Trending Articles Carousel */}
+            <ArticleCarousel 
+              title="Trending Stories" 
+              articles={trendingArticles} 
+              autoSlideInterval={5000} 
+            />
             
             {/* Regular Articles */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -171,7 +236,7 @@ const Index = () => {
             
             <div className="text-center">
               <Link to="/archive">
-                <Button variant="outline" className="btn-outline">
+                <Button variant="outline" className="border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800">
                   View All Articles
                 </Button>
               </Link>
@@ -180,10 +245,10 @@ const Index = () => {
         </section>
         
         {/* Featured Startups Section */}
-        <section className="py-16">
+        <section className="py-16 dark:bg-gray-950">
           <div className="container mx-auto px-4">
-            <h2 className="section-title text-center">Featured Startups</h2>
-            <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold mb-2 text-center">Featured Startups</h2>
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
               In-depth analyses of innovative companies changing the tech landscape through disruptive products and business models.
             </p>
             
@@ -195,7 +260,7 @@ const Index = () => {
             
             <div className="text-center">
               <Link to="/startups">
-                <Button variant="outline" className="btn-outline">
+                <Button variant="outline" className="border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800">
                   Explore All Startups
                 </Button>
               </Link>
