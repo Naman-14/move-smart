@@ -52,6 +52,20 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				parrot: {
+					green: '#4CAF50',
+					blue: '#0EA5E9',
+					yellow: '#FEF7CD',
+					orange: '#F97316',
+					soft: {
+						green: '#F2FCE2',
+						yellow: '#FEF7CD',
+						orange: '#FEC6A1'
+					}
+				},
+				brand: {
+					dark: '#001f3f',
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
