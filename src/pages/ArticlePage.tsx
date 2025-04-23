@@ -142,7 +142,6 @@ const ArticlePage = () => {
               onError={(e) => {
                 // Fallback if image fails to load
                 e.currentTarget.src = 'https://placehold.co/800x400/EEE/31343C?text=MoveSmart';
-                console.error('Failed to load article image:', article.cover_image_url);
               }}
             />
           )}

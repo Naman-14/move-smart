@@ -1,175 +1,85 @@
 
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import ArticleHero from '@/components/ArticleHero';
-import CategoryTabs from '@/components/CategoryTabs';
-import ArticleCard from '@/components/ArticleCard';
-import TrendingSidebar from '@/components/TrendingSidebar';
-import ArticleCarousel from '@/components/ArticleCarousel';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import EnhancedNewsletterForm from '@/components/EnhancedNewsletterForm';
+import NewsletterModal from '@/components/NewsletterModal';
+import CookieConsent from '@/components/CookieConsent';
+import NewsletterForm from '@/components/NewsletterForm';
+import ArticleCard from '@/components/ArticleCard';
+import HeroCarousel from '@/components/HeroCarousel';
 import AdminControls from '@/components/AdminControls';
-import { Search, ArrowRight, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useArticles } from '@/hooks/useArticles';
 import { format } from 'date-fns';
-import { useToast } from '@/components/ui/use-toast';
-
-// Categories data
-const categories = [
-  { id: 'all', name: 'All', slug: 'all' },
-  { id: 'startups', name: 'Startups', slug: 'startups' },
-  { id: 'funding', name: 'Funding', slug: 'funding' },
-  { id: 'ai', name: 'AI', slug: 'ai' },
-  { id: 'fintech', name: 'Fintech', slug: 'fintech' },
-  { id: 'case-studies', name: 'Case Studies', slug: 'case-studies' },
-  { id: 'blockchain', name: 'Blockchain', slug: 'blockchain' },
-  { id: 'climate-tech', name: 'Climate Tech', slug: 'climate-tech' }
-];
 
 const Homepage = () => {
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [latestOffset, setLatestOffset] = useState(0);
-  const { toast } = useToast();
-  
-  // Fetch articles for different sections
-  const { 
-    articles: latestArticles, 
-    isLoading: isLoadingLatest,
-    hasMore: hasMoreLatest,
-    loadMore: loadMoreLatest
-  } = useArticles({ 
-    limit: 4,
-    offset: latestOffset,
-    ...(selectedCategory !== 'all' && { category: selectedCategory })
+  const navigate = useNavigate();
+  const [offset, setOffset] = useState(0);
+  const { articles, isLoading, hasMore, loadMore } = useArticles({ limit: 6, offset });
+
+  // Fetch articles for each category section
+  const { articles: startupArticles, isLoading: isLoadingStartups } = useArticles({ 
+    limit: 3, category: 'startups' 
   });
   
-  const { articles: aiArticles, isLoading: isLoadingAi } = useArticles({ 
-    limit: 3,
-    category: 'ai'
+  const { articles: aiArticles, isLoading: isLoadingAI } = useArticles({ 
+    limit: 3, category: 'ai' 
   });
   
   const { articles: fundingArticles, isLoading: isLoadingFunding } = useArticles({ 
-    limit: 3,
-    category: 'funding'
-  });
-  
-  // Fetch articles for the startups carousel
-  const { articles: startupArticles, isLoading: isLoadingStartups } = useArticles({
-    limit: 5,
-    category: 'startups'
+    limit: 3, category: 'funding' 
   });
 
-  const handleCategorySelect = (categoryId: string) => {
-    setSelectedCategory(categoryId);
-    setLatestOffset(0); // Reset pagination when changing category
-  };
-
-  const handleLoadMore = () => {
-    const newOffset = loadMoreLatest();
-    setLatestOffset(newOffset);
-  };
-
-  // Transform articles for the startups carousel
-  const startupCarouselArticles = startupArticles.map(article => ({
+  // Format hero slides from articles
+  const heroSlides = articles.slice(0, 5).map(article => ({
+    id: article.id,
     title: article.title,
     excerpt: article.summary,
     imageUrl: article.cover_image_url,
-    date: format(new Date(article.created_at), 'MMMM dd, yyyy'),
     category: article.category,
+    author: 'MoveSmart',
+    publishedAt: format(new Date(article.created_at), 'MMMM dd, yyyy'),
     slug: article.slug
   }));
 
-  // Use this data only if we don't have enough real articles
-  const mockTrendingArticles = [
-    {
-      id: '1',
-      title: 'How Plaid Built the Fintech API Infrastructure',
-      excerpt: 'A deep dive into how Plaid created the essential infrastructure that powers thousands of fintech applications.',
-      imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
-      date: 'April 18, 2023',
-      category: 'Tech Deep Dive',
-      slug: 'plaid-api-infrastructure'
-    },
-    {
-      id: '2',
-      title: 'The Tech Behind Stripe\'s Success Story',
-      excerpt: 'How Stripe revolutionized online payments and became the backbone of internet commerce.',
-      imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
-      date: 'April 14, 2023',
-      category: 'Case Study',
-      slug: 'stripe-success-story'
-    },
-    {
-      id: '3',
-      title: 'Figma\'s Path to a $20B Valuation',
-      excerpt: 'The design tool that changed collaboration and caught Adobe\'s attention with a revolutionary product approach.',
-      imageUrl: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=2940&auto=format&fit=crop',
-      date: 'April 8, 2023',
-      category: 'Growth Analysis',
-      slug: 'figma-valuation'
-    },
-    {
-      id: '4',
-      title: 'How Discord Built a Community-First Platform',
-      excerpt: 'The evolution of Discord from gaming chat to a versatile community platform worth billions.',
-      imageUrl: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?q=80&w=2940&auto=format&fit=crop',
-      date: 'April 2, 2023',
-      category: 'Community Building',
-      slug: 'discord-community'
-    }
-  ];
+  const handleLoadMore = () => {
+    setOffset(loadMore());
+  };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white dark:bg-gray-950">
+    <div className="flex flex-col min-h-screen dark:bg-gray-950 dark:text-white">
       <Header />
       
       <main className="flex-grow">
-        {/* Add AdminControls at the top of the main content */}
-        <div className="container mx-auto px-4 mt-4">
-          <AdminControls />
-        </div>
+        {/* Admin Controls - only visible in development */}
+        {import.meta.env.DEV && <AdminControls />}
         
-        {/* Global Search Bar - Mobile Only */}
-        <div className="md:hidden p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="search" 
-              placeholder="Search for startups, articles, topics..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-800 rounded-full focus:outline-none focus:ring-1 focus:ring-parrot-green dark:bg-gray-900"
-            />
-          </div>
-        </div>
-        
-        {/* Dynamic Hero Carousel */}
-        <section className="container mx-auto px-4 pt-4 pb-8">
-          <ArticleHero />
+        {/* Hero Section with Carousel */}
+        <section className="container mx-auto px-4 py-6">
+          {isLoading ? (
+            <div className="h-[500px] md:h-[600px] bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+          ) : (
+            <HeroCarousel slides={heroSlides} />
+          )}
         </section>
         
-        {/* Category Navigation */}
-        <section className="container mx-auto px-4">
-          <CategoryTabs categories={categories} onSelectCategory={handleCategorySelect} />
-        </section>
-        
-        {/* Main Content + Sidebar */}
-        <section className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Content Column - 2/3 width */}
-            <div className="lg:col-span-2">
-              <h2 className="text-2xl font-bold mb-6">Latest Stories</h2>
-              
-              {isLoadingLatest && latestOffset === 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="bg-gray-100 rounded-xl h-80 animate-pulse" />
-                  ))}
-                </div>
-              ) : latestArticles.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  {latestArticles.map(article => (
-                    <ArticleCard 
+        {/* Latest Articles Section */}
+        <section className="py-12 bg-gray-50 dark:bg-gray-900">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-bold mb-8">Latest Stories</h2>
+            
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, index) => (
+                  <div key={index} className="h-80 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : articles.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {articles.map(article => (
+                    <ArticleCard
                       key={article.id}
                       title={article.title}
                       excerpt={article.summary}
@@ -180,156 +90,178 @@ const Homepage = () => {
                     />
                   ))}
                 </div>
-              ) : (
-                <div className="text-center py-10 bg-gray-50 rounded-xl mb-8">
-                  <p className="text-gray-500 mb-4">No articles found in this category</p>
-                  <Button 
-                    onClick={() => {
-                      handleCategorySelect('all');
-                      toast({
-                        title: "Showing all categories",
-                        description: "We'll show you articles from all categories"
-                      });
-                    }}
-                  >
-                    View All Categories
-                  </Button>
-                </div>
-              )}
-              
-              {/* Featured Category: AI */}
-              {isLoadingAi ? (
-                <div className="mt-12 mb-10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">AI Innovation</h2>
+                
+                {hasMore && (
+                  <div className="mt-8 text-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleLoadMore}
+                      disabled={isLoading}
+                      className="min-w-[200px]"
+                    >
+                      {isLoading ? 'Loading...' : 'Load More Stories'}
+                    </Button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="bg-gray-100 rounded-xl h-80 animate-pulse" />
-                    ))}
-                  </div>
-                </div>
-              ) : aiArticles.length > 0 ? (
-                <div className="mt-12 mb-10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">AI Innovation</h2>
-                    <Link to="/ai" className="flex items-center text-parrot-green hover:underline">
-                      <span>More AI stories</span>
-                      <ArrowRight size={16} className="ml-1" />
-                    </Link>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {aiArticles.map(article => (
-                      <ArticleCard 
-                        key={article.id}
-                        title={article.title}
-                        excerpt={article.summary}
-                        imageUrl={article.cover_image_url}
-                        date={format(new Date(article.created_at), 'MMMM dd, yyyy')}
-                        category={article.category}
-                        slug={article.slug}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              
-              {/* Featured Category: Funding */}
-              {isLoadingFunding ? (
-                <div className="mt-12 mb-10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Latest Funding</h2>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="bg-gray-100 rounded-xl h-80 animate-pulse" />
-                    ))}
-                  </div>
-                </div>
-              ) : fundingArticles.length > 0 ? (
-                <div className="mt-12 mb-10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Latest Funding</h2>
-                    <Link to="/funding" className="flex items-center text-parrot-green hover:underline">
-                      <span>More funding news</span>
-                      <ArrowRight size={16} className="ml-1" />
-                    </Link>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {fundingArticles.map(article => (
-                      <ArticleCard 
-                        key={article.id}
-                        title={article.title}
-                        excerpt={article.summary}
-                        imageUrl={article.cover_image_url}
-                        date={format(new Date(article.created_at), 'MMMM dd, yyyy')}
-                        category={article.category}
-                        slug={article.slug}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              
-              {/* Startup Profiles Carousel */}
-              {isLoadingStartups ? (
-                <div className="mt-12 mb-10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Startup Profiles</h2>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl h-80 animate-pulse"></div>
-                </div>
-              ) : startupCarouselArticles.length > 0 ? (
-                <div className="mt-12 mb-10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Startup Profiles</h2>
-                    <Link to="/startups" className="flex items-center text-parrot-green hover:underline">
-                      <span>Explore all startups</span>
-                      <ArrowRight size={16} className="ml-1" />
-                    </Link>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl">
-                    <ArticleCarousel
-                      title=""
-                      articles={startupCarouselArticles}
-                      autoSlideInterval={6000}
-                      showControls={true}
-                    />
-                    
-                    <div className="text-center mt-6">
-                      <Button asChild>
-                        <Link to="/startups">
-                          Explore All Startup Profiles
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              
-              <div className="text-center mt-8">
-                {isLoadingLatest && latestOffset > 0 ? (
-                  <Button disabled variant="outline" className="border-gray-300">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading...
-                  </Button>
-                ) : hasMoreLatest ? (
-                  <Button 
-                    variant="outline" 
-                    className="border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                    onClick={handleLoadMore}
-                  >
-                    Load More Stories
-                  </Button>
-                ) : latestArticles.length > 0 ? (
-                  <p className="text-gray-500">You've reached the end of the articles</p>
-                ) : null}
+                )}
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400 mb-4">No articles available</p>
+                <Button onClick={() => navigate('/generate-content')} variant="default">
+                  Generate Content
+                </Button>
               </div>
-            </div>
+            )}
+          </div>
+        </section>
+        
+        {/* Category Sections */}
+        <section className="py-12">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-bold mb-2">Startup Spotlight</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Innovative companies making waves in the tech ecosystem</p>
             
-            {/* Sidebar - 1/3 width */}
-            <div className="lg:col-span-1">
-              <TrendingSidebar trendingArticles={mockTrendingArticles} />
+            {isLoadingStartups ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="h-80 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : startupArticles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {startupArticles.map(article => (
+                  <ArticleCard
+                    key={article.id}
+                    title={article.title}
+                    excerpt={article.summary}
+                    imageUrl={article.cover_image_url}
+                    date={format(new Date(article.created_at), 'MMMM dd, yyyy')}
+                    category={article.category}
+                    slug={article.slug}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                <p className="text-gray-500 dark:text-gray-400">No startup articles available</p>
+                <Button 
+                  onClick={() => navigate('/startups')} 
+                  variant="link" 
+                  className="mt-2"
+                >
+                  Explore Startups
+                </Button>
+              </div>
+            )}
+            
+            <div className="mt-6 text-center">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/startups')}
+                className="min-w-[200px]"
+              >
+                View All Startups
+              </Button>
+            </div>
+          </div>
+        </section>
+        
+        <section className="py-12 bg-gray-50 dark:bg-gray-900">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-bold mb-2">AI Innovation</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Latest breakthroughs in artificial intelligence and machine learning</p>
+            
+            {isLoadingAI ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="h-80 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : aiArticles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {aiArticles.map(article => (
+                  <ArticleCard
+                    key={article.id}
+                    title={article.title}
+                    excerpt={article.summary}
+                    imageUrl={article.cover_image_url}
+                    date={format(new Date(article.created_at), 'MMMM dd, yyyy')}
+                    category={article.category}
+                    slug={article.slug}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                <p className="text-gray-500 dark:text-gray-400">No AI articles available</p>
+                <Button 
+                  onClick={() => navigate('/ai')} 
+                  variant="link" 
+                  className="mt-2"
+                >
+                  Explore AI
+                </Button>
+              </div>
+            )}
+            
+            <div className="mt-6 text-center">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/ai')}
+                className="min-w-[200px]"
+              >
+                View All AI Articles
+              </Button>
+            </div>
+          </div>
+        </section>
+        
+        <section className="py-12">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-bold mb-2">Funding News</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Latest investment rounds and venture capital activity</p>
+            
+            {isLoadingFunding ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="h-80 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : fundingArticles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {fundingArticles.map(article => (
+                  <ArticleCard
+                    key={article.id}
+                    title={article.title}
+                    excerpt={article.summary}
+                    imageUrl={article.cover_image_url}
+                    date={format(new Date(article.created_at), 'MMMM dd, yyyy')}
+                    category={article.category}
+                    slug={article.slug}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                <p className="text-gray-500 dark:text-gray-400">No funding articles available</p>
+                <Button 
+                  onClick={() => navigate('/funding')} 
+                  variant="link" 
+                  className="mt-2"
+                >
+                  Explore Funding
+                </Button>
+              </div>
+            )}
+            
+            <div className="mt-6 text-center">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/funding')}
+                className="min-w-[200px]"
+              >
+                View All Funding News
+              </Button>
             </div>
           </div>
         </section>
@@ -343,7 +275,7 @@ const Homepage = () => {
                 Join thousands of founders, investors, and tech enthusiasts receiving our weekly newsletter with the latest startup insights.
               </p>
               <div className="max-w-md mx-auto">
-                <EnhancedNewsletterForm />
+                <NewsletterForm />
               </div>
             </div>
           </div>
@@ -351,6 +283,8 @@ const Homepage = () => {
       </main>
       
       <Footer />
+      <NewsletterModal delayInSeconds={15} />
+      <CookieConsent />
     </div>
   );
 };

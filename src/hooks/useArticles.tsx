@@ -21,7 +21,7 @@ interface UseArticlesOptions {
   category?: string;
   tags?: string[];
   featured?: boolean;
-  offset?: number; // Add offset for pagination
+  offset?: number; // For pagination
 }
 
 export const useArticles = ({
@@ -175,13 +175,14 @@ export const useArticle = (slug: string) => {
         } else {
           console.log(`No article found with slug: ${slug}`);
           setArticle(null);
+          throw new Error('Article not found');
         }
       } catch (error: any) {
         console.error('Error fetching article:', error);
         setError(error.message);
         toast({
           title: 'Error fetching article',
-          description: 'Please try again later.',
+          description: 'Article not found or has been removed.',
           variant: 'destructive'
         });
       } finally {

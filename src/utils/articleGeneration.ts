@@ -52,48 +52,73 @@ export const triggerArticleGeneration = async () => {
       // Continue with normal invocation even if health check fails
     }
     
-    // Use different queries for each category to ensure diverse content
-    const queries = {
-      startups: ['tech startups', 'startup founders', 'emerging startups', 'startup innovations'],
-      funding: ['startup funding', 'venture capital', 'series a funding', 'seed funding rounds'],
-      ai: ['artificial intelligence news', 'ai innovations', 'machine learning startups', 'ai technology'],
-      fintech: ['financial technology', 'fintech innovations', 'digital banking', 'payment solutions'],
-      'case-studies': ['business case studies', 'startup success stories', 'company growth strategies'],
-      blockchain: ['blockchain technology', 'crypto startups', 'web3 innovations', 'blockchain applications'],
-      'climate-tech': ['climate technology', 'clean energy startups', 'sustainable tech', 'green innovations']
-    };
+    // Generate content for each category to ensure all sections are populated
+    const categories = [
+      'startups', 'funding', 'ai', 'fintech', 'case-studies', 'blockchain', 'climate-tech'
+    ];
     
-    // Generate 3-5 articles for each category
     let successCount = 0;
-    const categories = Object.keys(queries);
     
+    // Process each category with specific sources to generate diverse, high-quality content
     for (const category of categories) {
-      // Select a random query from the category's list
-      const categoryQueries = queries[category];
-      const randomQuery = categoryQueries[Math.floor(Math.random() * categoryQueries.length)];
+      let query = '';
       
-      console.log(`Generating articles for category: ${category} with query: ${randomQuery}`);
-      
-      const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
-        body: { 
-          manualRun: true,
-          debug: true,
-          clientTimestamp: new Date().toISOString(),
-          query: randomQuery,
-          targetCategory: category, // Specify which category we want
-          articlesNeeded: 4 // Request 4 articles per category
-        },
-      });
-      
-      if (error) {
-        console.error(`Error generating ${category} articles:`, error);
-      } else if (data) {
-        console.log(`Successfully generated ${category} articles:`, data);
-        successCount += (data.articles?.length || 0);
+      // Select appropriate sources and queries based on category
+      switch(category) {
+        case 'startups':
+          query = 'TechCrunch startup funding OR YCombinator startups';
+          break;
+        case 'funding':
+          query = 'venture capital funding rounds OR series A B C funding';
+          break;
+        case 'ai':
+          query = 'artificial intelligence innovation OR AI startup breakthroughs';
+          break;
+        case 'fintech':
+          query = 'financial technology disruption OR digital banking innovation';
+          break;
+        case 'case-studies':
+          query = 'startup success stories OR business case studies';
+          break;
+        case 'blockchain':
+          query = 'blockchain technology innovation OR web3 startups';
+          break;
+        case 'climate-tech':
+          query = 'climate technology startups OR sustainable innovation';
+          break;
+        default:
+          query = 'tech startup innovation';
       }
       
-      // Small delay between category requests to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log(`Generating content for category "${category}" with query: "${query}"`);
+      
+      try {
+        // For each category, generate 3-5 articles to ensure good content coverage
+        const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
+          body: { 
+            manualRun: true,
+            debug: true,
+            clientTimestamp: new Date().toISOString(),
+            query: query,
+            targetCategory: category,
+            articlesNeeded: 5, // Request 5 articles per category for good content volume
+            useAI: true // Enable AI content enhancement
+          },
+        });
+        
+        if (error) {
+          console.error(`Error generating ${category} articles:`, error);
+        } else if (data) {
+          console.log(`Successfully generated ${category} articles:`, 
+            data.articles?.map(a => ({id: a.id, title: a.title})) || 'No articles data');
+          successCount += (data.articles?.length || 0);
+        }
+        
+        // Small delay between category requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 800));
+      } catch (categoryError) {
+        console.error(`Error processing category ${category}:`, categoryError);
+      }
     }
     
     console.log(`=== ARTICLE GENERATION COMPLETE: Generated ${successCount} new articles ===`);
