@@ -11,11 +11,44 @@ export const triggerArticleGeneration = async () => {
     // Log the supabase client state (without sensitive info)
     console.log('Supabase client initialized:', !!supabase);
     
+    // Add version information for debugging
+    console.log('Client version info:', {
+      timestamp: new Date().toISOString(),
+      clientUrl: supabase.supabaseUrl,
+      functionUrl: `${supabase.supabaseUrl}/functions/v1/fetch-and-generate-articles`
+    });
+    
     // Detailed pre-invocation logging
     console.log('About to invoke fetch-and-generate-articles edge function...');
     
+    // First, check if we can simply fetch from the edge function endpoint (fallback)
+    try {
+      console.log('Attempting direct fetch to check edge function availability...');
+      const healthResponse = await fetch(`${supabase.supabaseUrl}/functions/v1/fetch-and-generate-articles/health`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      console.log('Health check status:', healthResponse.status);
+      if (healthResponse.ok) {
+        console.log('Health check response:', await healthResponse.text());
+      } else {
+        console.warn('Health check failed:', await healthResponse.text());
+      }
+    } catch (healthError) {
+      console.warn('Health check failed with error:', healthError);
+      // Continue with normal invocation even if health check fails
+    }
+    
     const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
-      body: { manualRun: true },
+      body: { 
+        manualRun: true,
+        debug: true, // Add debug flag
+        clientTimestamp: new Date().toISOString()
+      },
     });
     
     // Detailed post-invocation logging
@@ -27,6 +60,26 @@ export const triggerArticleGeneration = async () => {
     
     if (error) {
       console.error('Error from fetch-and-generate-articles function:', error);
+      
+      // Try to extract more details from the error
+      if (error.message) {
+        console.error('Error message:', error.message);
+      }
+      
+      if (error.context) {
+        console.error('Error context:', error.context);
+      }
+      
+      // Attempt to parse any response body if available
+      if (error.context && error.context.responseText) {
+        try {
+          const errorBody = JSON.parse(error.context.responseText);
+          console.error('Error response body:', errorBody);
+        } catch (parseError) {
+          console.error('Error response text (not JSON):', error.context.responseText);
+        }
+      }
+      
       throw error;
     }
     
@@ -52,6 +105,23 @@ export const triggerArticleGeneration = async () => {
     if (error instanceof Error) {
       console.error('Error stack:', error.stack);
     }
+    
+    // If the error is a FunctionsHttpError, try to get more details
+    if (error.name === 'FunctionsHttpError') {
+      console.error('FunctionsHttpError details:');
+      console.error('- Status:', error.context?.status);
+      console.error('- Status Text:', error.context?.statusText);
+      
+      if (error.context?.responseText) {
+        try {
+          const responseBody = JSON.parse(error.context.responseText);
+          console.error('- Response body:', responseBody);
+        } catch (e) {
+          console.error('- Raw response:', error.context.responseText);
+        }
+      }
+    }
+    
     throw error;
   }
 };

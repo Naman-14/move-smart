@@ -39,20 +39,86 @@ serve(async (req) => {
     });
   }
   
+  // Handle health check endpoint
+  const url = new URL(req.url);
+  if (url.pathname.endsWith('/health')) {
+    console.log("Health check endpoint called");
+    
+    // Check all required environment variables
+    const envVars = {
+      GNEWS_API_KEY: !!GNEWS_API_KEY,
+      OPENAI_API_KEY: !!OPENAI_API_KEY,
+      SUPABASE_URL: !!SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY
+    };
+    
+    // Check supabase client
+    let dbCheck = false;
+    try {
+      const { data, error } = await supabase.from('articles').select('id').limit(1);
+      dbCheck = !error;
+    } catch (e) {
+      console.error("Database check failed:", e);
+    }
+    
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        environment: envVars,
+        database: dbCheck,
+        timestamp: new Date().toISOString(),
+        denoVersion: Deno.version.deno
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
+    );
+  }
+  
   try {
     // Parse request body
     const reqBody = await req.json();
-    const { manualRun = false, query, country } = reqBody;
+    const { manualRun = false, query, country, debug = false } = reqBody;
     
     console.log('Starting fetch-and-generate-articles function');
+    console.log('Request body:', JSON.stringify(reqBody));
     
     // Validate API keys
     if (!GNEWS_API_KEY) {
-      throw new Error('GNEWS_API_KEY environment variable is not set');
+      console.error('GNEWS_API_KEY environment variable is not set');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'GNEWS_API_KEY environment variable is not set',
+          debug: debug ? { envVars: { 
+            GNEWS_API_KEY: !!GNEWS_API_KEY,
+            OPENAI_API_KEY: !!OPENAI_API_KEY 
+          } } : undefined
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
     
     if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
+      console.error('OPENAI_API_KEY environment variable is not set');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'OPENAI_API_KEY environment variable is not set',
+          debug: debug ? { envVars: { 
+            GNEWS_API_KEY: !!GNEWS_API_KEY,
+            OPENAI_API_KEY: !!OPENAI_API_KEY 
+          } } : undefined
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
     
     // Select query and country - either from params or randomly
@@ -62,92 +128,104 @@ serve(async (req) => {
     console.log(`Using search query: ${searchQuery}, country: ${searchCountry}`);
     
     // Fetch articles from GNews.io
-    const articlesResponse = await fetch(
-      `https://gnews.io/api/v4/search?q=${searchQuery}&lang=en&country=${searchCountry}&max=5&token=${GNEWS_API_KEY}`
-    );
-    
-    if (!articlesResponse.ok) {
-      const errorText = await articlesResponse.text();
-      throw new Error(`Failed to fetch articles from GNews: ${errorText}`);
-    }
-    
-    const articlesData = await articlesResponse.json();
-    const articles = articlesData.articles || [];
-    
-    console.log(`Fetched ${articles.length} articles from GNews`);
-    
-    // Create a record of this fetch - with error handling for database operations
-    let fetchId;
     try {
-      const { data: sourceFetch, error: sourceFetchError } = await supabase
-        .from('source_fetches')
-        .insert({
-          source: 'gnews',
-          query: searchQuery,
-          country: searchCountry,
-          articles_fetched: articles.length,
-          articles_processed: 0,
-          status: 'in_progress'
-        })
-        .select()
-        .single();
-        
-      if (sourceFetchError) {
-        console.error('Error creating source fetch record:', sourceFetchError);
-        throw new Error(`Error creating source fetch record: ${sourceFetchError.message}`);
+      const gnewsUrl = `https://gnews.io/api/v4/search?q=${searchQuery}&lang=en&country=${searchCountry}&max=5&token=${GNEWS_API_KEY}`;
+      console.log(`Fetching articles from: ${gnewsUrl.replace(GNEWS_API_KEY, 'API_KEY_REDACTED')}`);
+      
+      const articlesResponse = await fetch(gnewsUrl);
+      
+      if (!articlesResponse.ok) {
+        const errorText = await articlesResponse.text();
+        console.error(`GNews API error: Status ${articlesResponse.status}, Response: ${errorText}`);
+        throw new Error(`Failed to fetch articles from GNews: ${articlesResponse.status} ${articlesResponse.statusText}`);
       }
       
-      if (!sourceFetch) {
-        throw new Error('Failed to create source fetch record - no data returned');
-      }
+      const articlesData = await articlesResponse.json();
+      const articles = articlesData.articles || [];
       
-      fetchId = sourceFetch.id;
-    } catch (dbError) {
-      console.error('Database error when creating source fetch:', dbError);
-      throw new Error(`Database error: ${dbError.message}`);
-    }
-    
-    let processedCount = 0;
-    
-    // Process each article
-    for (const article of articles) {
+      console.log(`Fetched ${articles.length} articles from GNews`);
+      
+      // Create a record of this fetch - with error handling for database operations
+      let fetchId;
       try {
-        // Check if we already have an article with this source URL
-        const { data: existingArticle } = await supabase
-          .from('articles')
-          .select('id')
-          .eq('source_url', article.url)
-          .maybeSingle();
+        console.log("Creating source fetch record in database");
+        const { data: sourceFetch, error: sourceFetchError } = await supabase
+          .from('source_fetches')
+          .insert({
+            source: 'gnews',
+            query: searchQuery,
+            country: searchCountry,
+            articles_fetched: articles.length,
+            articles_processed: 0,
+            status: 'in_progress'
+          })
+          .select()
+          .single();
           
-        if (existingArticle) {
-          console.log(`Article already exists for URL: ${article.url}`);
-          continue;
+        if (sourceFetchError) {
+          console.error('Error creating source fetch record:', sourceFetchError);
+          throw new Error(`Error creating source fetch record: ${sourceFetchError.message}`);
         }
         
-        // Prepare content for AI rewriting
-        const contentForAI = `
+        if (!sourceFetch) {
+          throw new Error('Failed to create source fetch record - no data returned');
+        }
+        
+        fetchId = sourceFetch.id;
+        console.log(`Source fetch record created with ID: ${fetchId}`);
+      } catch (dbError) {
+        console.error('Database error when creating source fetch:', dbError);
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+      
+      let processedCount = 0;
+      
+      // Process each article
+      for (const article of articles) {
+        try {
+          // Check if we already have an article with this source URL
+          const { data: existingArticle, error: checkError } = await supabase
+            .from('articles')
+            .select('id')
+            .eq('source_url', article.url)
+            .maybeSingle();
+            
+          if (checkError) {
+            console.error(`Error checking for existing article: ${checkError.message}`);
+            continue;
+          }
+            
+          if (existingArticle) {
+            console.log(`Article already exists for URL: ${article.url}`);
+            continue;
+          }
+          
+          // Prepare content for AI rewriting
+          const contentForAI = `
 Title: ${article.title}
 Description: ${article.description}
 Content: ${article.content}
-        `;
-        
-        // Use OpenAI to rewrite the article
-        const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an expert content creator for a tech startup news site. Rewrite startup news articles so they sound original, human-written, engaging, and informative. Avoid direct copying. Reconstruct the structure, language, and flow of the article. Keep factual accuracy, but do not mention or credit the original source.'
+          `;
+          
+          // Use OpenAI to rewrite the article
+          console.log(`Processing article: "${article.title}"`);
+          try {
+            const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
               },
-              {
-                role: 'user',
-                content: `Rewrite the following startup news article completely. Create:
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are an expert content creator for a tech startup news site. Rewrite startup news articles so they sound original, human-written, engaging, and informative. Avoid direct copying. Reconstruct the structure, language, and flow of the article. Keep factual accuracy, but do not mention or credit the original source.'
+                  },
+                  {
+                    role: 'user',
+                    content: `Rewrite the following startup news article completely. Create:
 1. A catchy title (max 80 chars)
 2. A compelling summary (2 paragraphs)
 3. A full article (800-1000 words with proper HTML formatting using <p>, <h2>, <h3>, <ul>, <li>, <strong> tags)
@@ -166,103 +244,125 @@ Format your response as JSON with these fields:
 
 Here is the article to rewrite:
 ${contentForAI}`
-              }
-            ],
-            temperature: 0.7
-          })
-        });
-        
-        if (!aiResponse.ok) {
-          const aiErrorText = await aiResponse.text();
-          throw new Error(`OpenAI error: ${aiErrorText}`);
+                  }
+                ],
+                temperature: 0.7
+              })
+            });
+            
+            if (!aiResponse.ok) {
+              const aiErrorText = await aiResponse.text();
+              console.error(`OpenAI error: Status ${aiResponse.status}, Response: ${aiErrorText}`);
+              throw new Error(`OpenAI error: ${aiResponse.status} ${aiResponse.statusText}`);
+            }
+            
+            const aiResult = await aiResponse.json();
+            console.log("Received AI response");
+            const aiContent = aiResult.choices[0].message.content;
+            
+            // Parse the AI response (expecting JSON)
+            let parsedAiContent;
+            try {
+              parsedAiContent = JSON.parse(aiContent);
+              console.log(`Successfully parsed AI response for article: "${parsedAiContent.title}"`);
+            } catch (e) {
+              console.error('Failed to parse AI response as JSON:', e);
+              console.error('AI content:', aiContent.substring(0, 500) + '...');
+              throw new Error('Failed to parse AI response as JSON');
+            }
+            
+            // Generate a slug from the title
+            const { data: slugResult, error: slugError } = await supabase
+              .rpc('generate_slug', { title: parsedAiContent.title });
+              
+            if (slugError) {
+              console.error(`Error generating slug: ${slugError.message}`);
+              throw new Error(`Error generating slug: ${slugError.message}`);
+            }
+            
+            // Use the cover image from the original article or a placeholder
+            const coverImageUrl = article.image || 'https://via.placeholder.com/800x450?text=MoveSmart';
+            
+            // Insert the rewritten article into our database
+            const { data: newArticle, error: insertError } = await supabase
+              .from('articles')
+              .insert({
+                title: parsedAiContent.title,
+                slug: slugResult,
+                summary: parsedAiContent.summary,
+                content: parsedAiContent.content,
+                cover_image_url: coverImageUrl,
+                tags: parsedAiContent.tags,
+                category: parsedAiContent.category,
+                source_url: article.url,
+                visible: !manualRun // If manual run, set to false so admin can review
+              })
+              .select()
+              .single();
+              
+            if (insertError) {
+              console.error(`Error inserting article: ${insertError.message}`);
+              throw new Error(`Error inserting article: ${insertError.message}`);
+            }
+            
+            console.log(`Successfully processed article: ${parsedAiContent.title}`);
+            processedCount++;
+          } catch (aiError) {
+            console.error(`Error with OpenAI processing:`, aiError);
+          }
+        } catch (articleError) {
+          console.error(`Error processing article:`, articleError);
         }
-        
-        const aiResult = await aiResponse.json();
-        const aiContent = aiResult.choices[0].message.content;
-        
-        // Parse the AI response (expecting JSON)
-        let parsedAiContent;
-        try {
-          parsedAiContent = JSON.parse(aiContent);
-        } catch (e) {
-          console.error('Failed to parse AI response as JSON:', aiContent);
-          throw new Error('Failed to parse AI response as JSON');
-        }
-        
-        // Generate a slug from the title
-        const { data: slugResult, error: slugError } = await supabase
-          .rpc('generate_slug', { title: parsedAiContent.title });
-          
-        if (slugError) {
-          throw new Error(`Error generating slug: ${slugError.message}`);
-        }
-        
-        // Use the cover image from the original article or a placeholder
-        const coverImageUrl = article.image || 'https://via.placeholder.com/800x450?text=MoveSmart';
-        
-        // Insert the rewritten article into our database
-        const { data: newArticle, error: insertError } = await supabase
-          .from('articles')
-          .insert({
-            title: parsedAiContent.title,
-            slug: slugResult,
-            summary: parsedAiContent.summary,
-            content: parsedAiContent.content,
-            cover_image_url: coverImageUrl,
-            tags: parsedAiContent.tags,
-            category: parsedAiContent.category,
-            source_url: article.url,
-            visible: !manualRun // If manual run, set to false so admin can review
-          })
-          .select()
-          .single();
-          
-        if (insertError) {
-          throw new Error(`Error inserting article: ${insertError.message}`);
-        }
-        
-        console.log(`Successfully processed article: ${parsedAiContent.title}`);
-        processedCount++;
-        
-      } catch (articleError) {
-        console.error(`Error processing article:`, articleError);
       }
-    }
-    
-    // Update the source fetch record
-    try {
-      const { error: updateError } = await supabase
-        .from('source_fetches')
-        .update({
-          articles_processed: processedCount,
-          status: 'completed'
-        })
-        .eq('id', fetchId);
-        
-      if (updateError) {
-        console.error(`Error updating source fetch record:`, updateError);
-      }
-    } catch (updateError) {
-      console.error(`Exception updating source fetch record:`, updateError);
-    }
       
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Successfully processed ${processedCount} of ${articles.length} articles`,
-        fetchId
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      // Update the source fetch record
+      try {
+        const { error: updateError } = await supabase
+          .from('source_fetches')
+          .update({
+            articles_processed: processedCount,
+            status: 'completed'
+          })
+          .eq('id', fetchId);
+          
+        if (updateError) {
+          console.error(`Error updating source fetch record:`, updateError);
+        }
+      } catch (updateError) {
+        console.error(`Exception updating source fetch record:`, updateError);
       }
-    );
+        
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Successfully processed ${processedCount} of ${articles.length} articles`,
+          fetchId
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    } catch (gnewsError) {
+      console.error('Error fetching from GNews:', gnewsError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Error fetching articles: ${gnewsError.message}`
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
   } catch (error) {
     console.error('Error in fetch-and-generate-articles:', error);
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       }),
       {
         status: 500,

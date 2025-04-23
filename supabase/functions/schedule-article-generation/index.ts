@@ -32,6 +32,36 @@ serve(async (req) => {
     // Verify the supabase client is initialized properly
     console.log('- Supabase client initialized:', !!supabase);
     
+    // Check health of the fetch-and-generate-articles function first
+    console.log('Checking health of fetch-and-generate-articles function...');
+    try {
+      const healthUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles/health`;
+      console.log(`Health check URL: ${healthUrl}`);
+      
+      const healthResponse = await fetch(
+        healthUrl,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+      
+      console.log(`Health check status: ${healthResponse.status}`);
+      
+      if (healthResponse.ok) {
+        const healthData = await healthResponse.json();
+        console.log('Health check passed:', healthData);
+      } else {
+        const errorText = await healthResponse.text();
+        console.error(`Health check failed: ${errorText}`);
+      }
+    } catch (healthError) {
+      console.error('Error performing health check:', healthError);
+    }
+    
     // URL construction check
     const functionUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`;
     console.log('Constructing URL for function call:', functionUrl);
@@ -40,6 +70,7 @@ serve(async (req) => {
     const requestBody = JSON.stringify({
       manualRun: false,
       scheduled: true,
+      debug: true,
       diagnostics: {
         timestamp: new Date().toISOString(),
         source: 'schedule-article-generation',
@@ -68,6 +99,15 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error('Failed to trigger article generation. Status:', response.status);
       console.error('Error response body:', errorText);
+      
+      // Try to parse the error response for more details
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error('Parsed error details:', errorJson);
+      } catch (e) {
+        // Error text wasn't valid JSON
+      }
+      
       throw new Error(`Failed to trigger article generation (${response.status}): ${errorText}`);
     }
 
