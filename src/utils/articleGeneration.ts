@@ -52,102 +52,58 @@ export const triggerArticleGeneration = async () => {
       // Continue with normal invocation even if health check fails
     }
     
-    // Use different queries each time to get diverse content
-    const queries = [
-      'tech startups', 
-      'AI innovation', 
-      'fintech news',
-      'startup funding',
-      'climate tech',
-      'blockchain innovation',
-      'SaaS companies',
-      'tech acquisitions',
-      'startup founders',
-      'venture capital'
-    ];
+    // Use different queries for each category to ensure diverse content
+    const queries = {
+      startups: ['tech startups', 'startup founders', 'emerging startups', 'startup innovations'],
+      funding: ['startup funding', 'venture capital', 'series a funding', 'seed funding rounds'],
+      ai: ['artificial intelligence news', 'ai innovations', 'machine learning startups', 'ai technology'],
+      fintech: ['financial technology', 'fintech innovations', 'digital banking', 'payment solutions'],
+      'case-studies': ['business case studies', 'startup success stories', 'company growth strategies'],
+      blockchain: ['blockchain technology', 'crypto startups', 'web3 innovations', 'blockchain applications'],
+      'climate-tech': ['climate technology', 'clean energy startups', 'sustainable tech', 'green innovations']
+    };
     
-    // Select a random query from the list
-    const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+    // Generate 3-5 articles for each category
+    let successCount = 0;
+    const categories = Object.keys(queries);
     
-    const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
-      body: { 
-        manualRun: true,
-        debug: true, // Add debug flag
-        clientTimestamp: new Date().toISOString(),
-        query: randomQuery,
-        articlesNeeded: 10 // Request more articles
-      },
-    });
-    
-    // Detailed post-invocation logging
-    console.log('Edge function invocation completed. Response received.');
-    
-    // Log the raw response for debugging
-    console.log('Raw response data:', data);
-    console.log('Raw response error:', error);
-    
-    if (error) {
-      console.error('Error from fetch-and-generate-articles function:', error);
+    for (const category of categories) {
+      // Select a random query from the category's list
+      const categoryQueries = queries[category];
+      const randomQuery = categoryQueries[Math.floor(Math.random() * categoryQueries.length)];
       
-      // Try to extract more details from the error
-      if (error.message) {
-        console.error('Error message:', error.message);
+      console.log(`Generating articles for category: ${category} with query: ${randomQuery}`);
+      
+      const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
+        body: { 
+          manualRun: true,
+          debug: true,
+          clientTimestamp: new Date().toISOString(),
+          query: randomQuery,
+          targetCategory: category, // Specify which category we want
+          articlesNeeded: 4 // Request 4 articles per category
+        },
+      });
+      
+      if (error) {
+        console.error(`Error generating ${category} articles:`, error);
+      } else if (data) {
+        console.log(`Successfully generated ${category} articles:`, data);
+        successCount += (data.articles?.length || 0);
       }
       
-      if (error.context) {
-        console.error('Error context:', error.context);
-      }
-      
-      // Attempt to parse any response body if available
-      if (error.context && error.context.responseText) {
-        try {
-          const errorBody = JSON.parse(error.context.responseText);
-          console.error('Error response body:', errorBody);
-        } catch (parseError) {
-          console.error('Error response text (not JSON):', error.context.responseText);
-        }
-      }
-      
-      throw error;
+      // Small delay between category requests to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
-    if (!data) {
-      console.error('No data returned from function');
-      throw new Error('No data returned from function');
-    }
-    
-    if (typeof data === 'object' && (data as any).success === false) {
-      const errMsg = (data as any).error || 'Unknown error';
-      console.error('Function reported failure:', errMsg);
-      throw new Error(errMsg);
-    }
-    
-    console.log('Article generation triggered successfully:', data);
-    console.log('=== ARTICLE GENERATION COMPLETE ===');
-    
-    return data;
+    console.log(`=== ARTICLE GENERATION COMPLETE: Generated ${successCount} new articles ===`);
+    return { success: true, articlesGenerated: successCount };
   } catch (error) {
     // Enhanced error logging with stack trace
     console.error('=== ARTICLE GENERATION FAILED ===');
     console.error('Error in triggerArticleGeneration:', error);
     if (error instanceof Error) {
       console.error('Error stack:', error.stack);
-    }
-    
-    // If the error is a FunctionsHttpError, try to get more details
-    if (error.name === 'FunctionsHttpError') {
-      console.error('FunctionsHttpError details:');
-      console.error('- Status:', error.context?.status);
-      console.error('- Status Text:', error.context?.statusText);
-      
-      if (error.context?.responseText) {
-        try {
-          const responseBody = JSON.parse(error.context.responseText);
-          console.error('- Response body:', responseBody);
-        } catch (e) {
-          console.error('- Raw response:', error.context.responseText);
-        }
-      }
     }
     
     throw error;

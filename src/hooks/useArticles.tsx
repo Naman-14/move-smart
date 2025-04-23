@@ -134,7 +134,7 @@ export const useArticles = ({
   // Helper function to load more articles
   const loadMore = () => {
     if (hasMore && !isLoading) {
-      return offset + articles.length;
+      return offset + limit;
     }
     return offset;
   };

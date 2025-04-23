@@ -31,8 +31,15 @@ serve(async (req) => {
       input = {};
     }
     
-    const { manualRun = false, debug = false, query = 'tech startups', articlesNeeded = 5 } = input;
-    console.log(`Function parameters: manualRun=${manualRun}, debug=${debug}, query=${query}, articlesNeeded=${articlesNeeded}`);
+    const { 
+      manualRun = false, 
+      debug = false, 
+      query = 'tech startups', 
+      articlesNeeded = 5,
+      targetCategory = null // New parameter to target specific category
+    } = input;
+    
+    console.log(`Function parameters: manualRun=${manualRun}, debug=${debug}, query=${query}, articlesNeeded=${articlesNeeded}, targetCategory=${targetCategory}`);
     
     // Creating a Supabase client
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
@@ -103,7 +110,7 @@ serve(async (req) => {
             source: 'gnews',
             query: query,
             manual_run: manualRun,
-            parameters: { query, debug, manualRun }
+            parameters: { query, debug, manualRun, targetCategory }
           })
           .select();
         
@@ -143,7 +150,7 @@ serve(async (req) => {
               source: 'gnews',
               query: query,
               manual_run: manualRun,
-              parameters: { query, debug, manualRun }
+              parameters: { query, debug, manualRun, targetCategory }
             });
           
           if (error) console.error("Error logging source fetch after table creation:", error);
@@ -184,9 +191,11 @@ serve(async (req) => {
       );
     }
     
-    // Transform and process articles
+    // Define available categories
     const categories = ['startups', 'funding', 'ai', 'fintech', 'case-studies', 'blockchain', 'climate-tech'];
-    const processedArticles = articlesData.articles.map((article: any, index: number) => {
+    
+    // Transform and process articles
+    const processedArticles = articlesData.articles.map((article: any) => {
       // Generate a short slug from the title
       const slug = article.title
         .toLowerCase()
@@ -202,24 +211,35 @@ serve(async (req) => {
         ? stripHtml(article.content).result 
         : `<p>${article.description || 'No content available for this article.'}</p>`;
       
-      // Assign a random category, but make sure we have good distribution
-      // Use modulo to distribute evenly across categories
-      const category = categories[index % categories.length];
+      // Use the target category if provided, otherwise assign a random one
+      const category = targetCategory || categories[Math.floor(Math.random() * categories.length)];
       
-      // Generate tags based on title and content
-      const titleWords = article.title.toLowerCase().split(' ');
-      const potentialTags = ['technology', 'business', 'startup', 'innovation', 'digital', 'ai', 'funding', 'venture capital', 'finance', 'tech'];
-      const tags = potentialTags.filter(tag => 
-        titleWords.includes(tag) || 
-        article.description?.toLowerCase().includes(tag) ||
-        category.includes(tag)
+      // Generate tags based on title, content, and category
+      const keywordSets: Record<string, string[]> = {
+        'startups': ['startup', 'entrepreneurship', 'business', 'founder', 'innovation'],
+        'funding': ['venture capital', 'investment', 'funding', 'series a', 'investor'],
+        'ai': ['artificial intelligence', 'machine learning', 'ai', 'automation', 'neural network'],
+        'fintech': ['financial technology', 'banking', 'payment', 'finance', 'digital payment'],
+        'case-studies': ['case study', 'business strategy', 'growth', 'market analysis', 'success story'],
+        'blockchain': ['blockchain', 'cryptocurrency', 'web3', 'token', 'decentralized'],
+        'climate-tech': ['climate', 'sustainability', 'clean energy', 'green tech', 'carbon']
+      };
+      
+      // Generate relevant tags based on category and content
+      const baseKeywords = keywordSets[category] || ['technology', 'innovation', 'business'];
+      const titleWords = article.title.toLowerCase();
+      const descWords = article.description?.toLowerCase() || '';
+      
+      // Check which keywords are relevant based on title and description
+      const relevantTags = baseKeywords.filter(tag => 
+        titleWords.includes(tag) || descWords.includes(tag)
       );
       
-      // Make sure we have at least 2 tags
-      if (tags.length < 2) {
-        tags.push(category);
-        tags.push(potentialTags[index % potentialTags.length]);
-      }
+      // Always include at least 2 tags
+      const tags = relevantTags.length >= 2 ? relevantTags : [
+        baseKeywords[0], 
+        baseKeywords[1]
+      ];
       
       // Ensure unique tags
       const uniqueTags = [...new Set(tags)];
@@ -228,7 +248,7 @@ serve(async (req) => {
         title: article.title,
         slug,
         summary: summary,
-        content: `<p>${content}</p>`,
+        content: `<p>${summary}</p><p>&nbsp;</p><p>${content}</p>`,
         cover_image_url: article.image || 'https://placehold.co/800x400?text=MoveSmart',
         tags: uniqueTags.slice(0, 5),
         category,
@@ -239,7 +259,7 @@ serve(async (req) => {
       };
     });
     
-    console.log(`Processed ${processedArticles.length} articles`);
+    console.log(`Processed ${processedArticles.length} articles for category: ${targetCategory || 'mixed'}`);
     
     // Insert articles into database
     const { data: insertedData, error: insertError } = await supabase

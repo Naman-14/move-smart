@@ -30,13 +30,14 @@ const ArticlePage = () => {
   }, [error, toast]);
 
   // Get related articles based on category and tags
-  const { articles: relatedArticles } = useArticles({
-    limit: 3,
+  const { articles: relatedArticles, isLoading: isLoadingRelated } = useArticles({
+    limit: 4,
     category: article?.category,
-    // Exclude current article
-    ...(article && { tags: article.tags.slice(0, 2) })
+    // Only filter by tags if article exists
+    ...(article && article.tags && article.tags.length > 0 && { tags: article.tags.slice(0, 2) })
   });
 
+  // Filter out the current article from related articles
   const filteredRelatedArticles = relatedArticles.filter(
     relatedArticle => relatedArticle.id !== article?.id
   ).slice(0, 3);
