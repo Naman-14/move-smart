@@ -39,12 +39,12 @@ export const useArticles = ({
         setIsLoading(true);
         setError(null);
 
-        // Use 'from' with type assertion to work around TypeScript limitations
+        // Using generic type parameter with the from method to handle TypeScript typing
         let query = supabase
-          .from('articles' as any)
+          .from('articles')
           .select('*')
           .eq('visible', true)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false }) as any;
 
         // Apply category filter if provided
         if (category) {
@@ -102,13 +102,13 @@ export const useArticle = (slug: string) => {
         setIsLoading(true);
         setError(null);
 
-        // Use 'from' with type assertion to work around TypeScript limitations
-        const { data, error } = await supabase
-          .from('articles' as any)
+        // Using type casting to work around TypeScript limitations
+        const { data, error } = await (supabase
+          .from('articles')
           .select('*')
           .eq('visible', true)
           .eq('slug', slug)
-          .single();
+          .single() as any);
 
         if (error) {
           throw new Error(error.message);
