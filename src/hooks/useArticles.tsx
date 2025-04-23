@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import type { Database } from '@/integrations/supabase/types';
 
 export interface Article {
   id: string;
@@ -39,12 +40,11 @@ export const useArticles = ({
         setIsLoading(true);
         setError(null);
 
-        // Using generic type parameter with the from method to handle TypeScript typing
         let query = supabase
           .from('articles')
           .select('*')
           .eq('visible', true)
-          .order('created_at', { ascending: false }) as any;
+          .order('created_at', { ascending: false });
 
         // Apply category filter if provided
         if (category) {
@@ -102,13 +102,12 @@ export const useArticle = (slug: string) => {
         setIsLoading(true);
         setError(null);
 
-        // Using type casting to work around TypeScript limitations
-        const { data, error } = await (supabase
+        const { data, error } = await supabase
           .from('articles')
           .select('*')
           .eq('visible', true)
           .eq('slug', slug)
-          .single() as any);
+          .maybeSingle();
 
         if (error) {
           throw new Error(error.message);
