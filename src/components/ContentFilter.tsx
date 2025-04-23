@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge'; // Add missing import
 import FilterDropdown from './filters/FilterDropdown';
 import SearchInput from './filters/SearchInput';
 import ActiveFilters from './filters/ActiveFilters';
@@ -14,6 +15,9 @@ interface ContentFilterProps {
   tags: FilterOption[];
   onFilterChange: (filters: ContentFilters) => void;
 }
+
+// Export the ContentFilters type here to fix import errors in other files
+export type { ContentFilters } from './filters/types';
 
 const ContentFilter = ({
   categories,
