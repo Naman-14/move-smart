@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ArticleHero from '@/components/ArticleHero';
@@ -11,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import EnhancedNewsletterForm from '@/components/EnhancedNewsletterForm';
+import AdminControls from '@/components/AdminControls';
 import { Search, ArrowRight } from 'lucide-react';
 import { useArticles } from '@/hooks/useArticles';
 import { format } from 'date-fns';
@@ -111,6 +111,11 @@ const Homepage = () => {
       <Header />
       
       <main className="flex-grow">
+        {/* Add AdminControls at the top of the main content */}
+        <div className="container mx-auto px-4 mt-4">
+          <AdminControls />
+        </div>
+        
         {/* Global Search Bar - Mobile Only */}
         <div className="md:hidden p-4">
           <div className="relative">
