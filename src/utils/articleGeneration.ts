@@ -37,7 +37,13 @@ export const triggerArticleGeneration = async () => {
       
       console.log('Health check status:', healthResponse.status);
       if (healthResponse.ok) {
-        console.log('Health check response:', await healthResponse.text());
+        const healthData = await healthResponse.json();
+        console.log('Health check response:', healthData);
+        
+        // Specific check for the source_fetches table
+        if (healthData.source_fetches_table === false) {
+          console.warn('The source_fetches table does not exist or is not accessible!');
+        }
       } else {
         console.warn('Health check failed:', await healthResponse.text());
       }

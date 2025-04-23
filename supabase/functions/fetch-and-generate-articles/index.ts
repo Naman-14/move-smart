@@ -61,11 +61,35 @@ serve(async (req) => {
       console.error("Database check failed:", e);
     }
     
+    // Check if source_fetches table exists
+    let tableCheck = false;
+    try {
+      console.log("Checking if source_fetches table exists");
+      const { data, error } = await supabase
+        .from('source_fetches')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+      
+      tableCheck = !error || error.code !== "42P01"; // 42P01 is "undefined_table"
+      
+      if (error && error.code === "42P01") {
+        console.error("source_fetches table doesn't exist:", error.message);
+      } else if (error) {
+        console.error("Error checking source_fetches table:", error.message);
+      } else {
+        console.log("source_fetches table exists");
+      }
+    } catch (e) {
+      console.error("Error checking source_fetches table:", e);
+    }
+    
     return new Response(
       JSON.stringify({
         status: "ok",
         environment: envVars,
         database: dbCheck,
+        source_fetches_table: tableCheck,
         timestamp: new Date().toISOString(),
         denoVersion: Deno.version.deno
       }),
@@ -148,8 +172,38 @@ serve(async (req) => {
       // Create a record of this fetch - with error handling for database operations
       let fetchId;
       try {
+        console.log("Checking if source_fetches table exists before creating record");
+        const tableCheckResponse = await supabase
+          .from('source_fetches')
+          .select('id')
+          .limit(1);
+        
+        if (tableCheckResponse.error && tableCheckResponse.error.code === "42P01") {
+          console.error("source_fetches table doesn't exist, creating it now");
+          // Try to create the table if it doesn't exist
+          const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS public.source_fetches (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+              source TEXT NOT NULL,
+              query TEXT NOT NULL,
+              country TEXT NOT NULL,
+              articles_fetched INTEGER NOT NULL DEFAULT 0,
+              articles_processed INTEGER NOT NULL DEFAULT 0,
+              status TEXT NOT NULL DEFAULT 'pending',
+              error_message TEXT
+            );
+          `;
+          
+          const createResult = await supabase.rpc('exec', { sql: createTableQuery });
+          if (createResult.error) {
+            console.error("Failed to create source_fetches table:", createResult.error);
+            throw new Error(`Failed to create source_fetches table: ${createResult.error.message}`);
+          }
+        }
+        
         console.log("Creating source fetch record in database");
-        const { data: sourceFetch, error: sourceFetchError } = await supabase
+        const sourceFetchResponse = await supabase
           .from('source_fetches')
           .insert({
             source: 'gnews',
@@ -159,23 +213,24 @@ serve(async (req) => {
             articles_processed: 0,
             status: 'in_progress'
           })
-          .select()
-          .single();
+          .select();
           
-        if (sourceFetchError) {
-          console.error('Error creating source fetch record:', sourceFetchError);
-          throw new Error(`Error creating source fetch record: ${sourceFetchError.message}`);
+        if (sourceFetchResponse.error) {
+          console.error('Error creating source fetch record:', sourceFetchResponse.error);
+          throw new Error(`Error creating source fetch record: ${sourceFetchResponse.error.message}`);
         }
         
-        if (!sourceFetch) {
+        if (!sourceFetchResponse.data || sourceFetchResponse.data.length === 0) {
           throw new Error('Failed to create source fetch record - no data returned');
         }
         
-        fetchId = sourceFetch.id;
+        fetchId = sourceFetchResponse.data[0].id;
         console.log(`Source fetch record created with ID: ${fetchId}`);
       } catch (dbError) {
         console.error('Database error when creating source fetch:', dbError);
-        throw new Error(`Database error: ${dbError.message}`);
+        // We'll continue without a fetch ID if we couldn't create the record
+        // Instead of throwing error here, we'll just log it and continue
+        console.warn(`Continuing without source_fetches record due to error: ${dbError.message}`);
       }
       
       let processedCount = 0;
@@ -315,21 +370,23 @@ ${contentForAI}`
         }
       }
       
-      // Update the source fetch record
-      try {
-        const { error: updateError } = await supabase
-          .from('source_fetches')
-          .update({
-            articles_processed: processedCount,
-            status: 'completed'
-          })
-          .eq('id', fetchId);
-          
-        if (updateError) {
-          console.error(`Error updating source fetch record:`, updateError);
+      // Update the source fetch record if we created one
+      if (fetchId) {
+        try {
+          const { error: updateError } = await supabase
+            .from('source_fetches')
+            .update({
+              articles_processed: processedCount,
+              status: 'completed'
+            })
+            .eq('id', fetchId);
+            
+          if (updateError) {
+            console.error(`Error updating source fetch record:`, updateError);
+          }
+        } catch (updateError) {
+          console.error(`Exception updating source fetch record:`, updateError);
         }
-      } catch (updateError) {
-        console.error(`Exception updating source fetch record:`, updateError);
       }
         
       return new Response(
