@@ -12,7 +12,10 @@ const AdminControls = () => {
   const handleGenerateArticles = async () => {
     try {
       setIsGenerating(true);
-      await triggerArticleGeneration();
+      console.log('Starting article generation process...');
+      
+      const result = await triggerArticleGeneration();
+      console.log('Generation result:', result);
       
       toast({
         title: 'Content Generation Started',
@@ -20,6 +23,7 @@ const AdminControls = () => {
         variant: 'default'
       });
     } catch (error) {
+      console.error('Error in handleGenerateArticles:', error);
       toast({
         title: 'Error Generating Content',
         description: 'Failed to trigger article generation. Please try again.',
@@ -41,6 +45,9 @@ const AdminControls = () => {
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Generate New Articles
         </Button>
+        <div className="text-sm text-gray-500 ml-4 flex items-center">
+          Auto-generates every 3 hours
+        </div>
       </div>
     </div>
   );
