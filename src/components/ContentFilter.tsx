@@ -2,21 +2,10 @@
 import { useState } from 'react';
 import { Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuCheckboxItem, 
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-
-interface FilterOption {
-  id: string;
-  label: string;
-}
+import FilterDropdown from './filters/FilterDropdown';
+import SearchInput from './filters/SearchInput';
+import ActiveFilters from './filters/ActiveFilters';
+import { FilterOption, ContentFilters } from './filters/types';
 
 interface ContentFilterProps {
   categories: FilterOption[];
@@ -24,14 +13,6 @@ interface ContentFilterProps {
   fundingStages: FilterOption[];
   tags: FilterOption[];
   onFilterChange: (filters: ContentFilters) => void;
-}
-
-export interface ContentFilters {
-  search: string;
-  categories: string[];
-  regions: string[];
-  fundingStages: string[];
-  tags: string[];
 }
 
 const ContentFilter = ({
@@ -94,18 +75,7 @@ const ContentFilter = ({
     <div className="mb-8">
       <div className="bg-white shadow-sm rounded-lg border border-gray-100 p-4">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative flex-1 w-full">
-            <Input 
-              type="search"
-              placeholder="Search articles and startups..."
-              value={filters.search}
-              onChange={handleSearchChange}
-              className="pl-10 w-full"
-            />
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <Filter size={16} />
-            </div>
-          </div>
+          <SearchInput value={filters.search} onChange={handleSearchChange} />
           
           <div className="flex items-center gap-2">
             <Button 
@@ -169,124 +139,20 @@ const ContentFilter = ({
         )}
       </div>
       
-      {hasActiveFilters && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {filters.search && (
-            <Badge variant="outline" className="bg-white">
-              Search: {filters.search}
-              <button 
-                onClick={() => {
-                  const newFilters = { ...filters, search: '' };
-                  setFilters(newFilters);
-                  onFilterChange(newFilters);
-                }} 
-                className="ml-2 text-gray-500 hover:text-gray-700"
-              >
-                <X size={12} />
-              </button>
-            </Badge>
-          )}
-          
-          {filters.categories.map(id => {
-            const category = categories.find(c => c.id === id);
-            return (
-              <ActiveFilter
-                key={`category-${id}`}
-                label={category?.label || id}
-                onRemove={() => toggleFilter('categories', id)}
-              />
-            );
-          })}
-          
-          {filters.regions.map(id => {
-            const region = regions.find(r => r.id === id);
-            return (
-              <ActiveFilter
-                key={`region-${id}`}
-                label={region?.label || id}
-                onRemove={() => toggleFilter('regions', id)}
-              />
-            );
-          })}
-          
-          {filters.fundingStages.map(id => {
-            const stage = fundingStages.find(s => s.id === id);
-            return (
-              <ActiveFilter
-                key={`stage-${id}`}
-                label={stage?.label || id}
-                onRemove={() => toggleFilter('fundingStages', id)}
-              />
-            );
-          })}
-          
-          {filters.tags.map(id => {
-            const tag = tags.find(t => t.id === id);
-            return (
-              <ActiveFilter
-                key={`tag-${id}`}
-                label={tag?.label || id}
-                onRemove={() => toggleFilter('tags', id)}
-              />
-            );
-          })}
-        </div>
-      )}
+      <ActiveFilters 
+        filters={filters}
+        categories={categories}
+        regions={regions}
+        fundingStages={fundingStages}
+        tags={tags}
+        onFilterChange={setFilters}
+        onClearSearch={() => {
+          const newFilters = { ...filters, search: '' };
+          setFilters(newFilters);
+          onFilterChange(newFilters);
+        }}
+      />
     </div>
-  );
-};
-
-interface FilterDropdownProps {
-  title: string;
-  options: FilterOption[];
-  selected: string[];
-  onToggle: (id: string) => void;
-}
-
-const FilterDropdown = ({ title, options, selected, onToggle }: FilterDropdownProps) => {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="w-full justify-between">
-          {title}
-          <Badge className={`ml-2 ${selected.length ? 'bg-parrot-green hover:bg-parrot-green' : 'bg-gray-200 hover:bg-gray-200 text-gray-500'}`}>
-            {selected.length || 'All'}
-          </Badge>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>{title}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {options.map(option => (
-          <DropdownMenuCheckboxItem
-            key={option.id}
-            checked={selected.includes(option.id)}
-            onCheckedChange={() => onToggle(option.id)}
-          >
-            {option.label}
-          </DropdownMenuCheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-};
-
-interface ActiveFilterProps {
-  label: string;
-  onRemove: () => void;
-}
-
-const ActiveFilter = ({ label, onRemove }: ActiveFilterProps) => {
-  return (
-    <Badge variant="outline" className="bg-white">
-      {label}
-      <button 
-        onClick={onRemove} 
-        className="ml-2 text-gray-500 hover:text-gray-700"
-      >
-        <X size={12} />
-      </button>
-    </Badge>
   );
 };
 
