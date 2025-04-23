@@ -46,6 +46,15 @@ serve(async (req) => {
     
     console.log('Starting fetch-and-generate-articles function');
     
+    // Validate API keys
+    if (!GNEWS_API_KEY) {
+      throw new Error('GNEWS_API_KEY environment variable is not set');
+    }
+    
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    
     // Select query and country - either from params or randomly
     const searchQuery = query || SEARCH_QUERIES[Math.floor(Math.random() * SEARCH_QUERIES.length)];
     const searchCountry = country || COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
@@ -67,25 +76,37 @@ serve(async (req) => {
     
     console.log(`Fetched ${articles.length} articles from GNews`);
     
-    // Create a record of this fetch
-    const { data: sourceFetch, error: sourceFetchError } = await supabase
-      .from('source_fetches')
-      .insert({
-        source: 'gnews',
-        query: searchQuery,
-        country: searchCountry,
-        articles_fetched: articles.length,
-        articles_processed: 0,
-        status: 'in_progress'
-      })
-      .select()
-      .single();
+    // Create a record of this fetch - with error handling for database operations
+    let fetchId;
+    try {
+      const { data: sourceFetch, error: sourceFetchError } = await supabase
+        .from('source_fetches')
+        .insert({
+          source: 'gnews',
+          query: searchQuery,
+          country: searchCountry,
+          articles_fetched: articles.length,
+          articles_processed: 0,
+          status: 'in_progress'
+        })
+        .select()
+        .single();
+        
+      if (sourceFetchError) {
+        console.error('Error creating source fetch record:', sourceFetchError);
+        throw new Error(`Error creating source fetch record: ${sourceFetchError.message}`);
+      }
       
-    if (sourceFetchError) {
-      throw new Error(`Error creating source fetch record: ${sourceFetchError.message}`);
+      if (!sourceFetch) {
+        throw new Error('Failed to create source fetch record - no data returned');
+      }
+      
+      fetchId = sourceFetch.id;
+    } catch (dbError) {
+      console.error('Database error when creating source fetch:', dbError);
+      throw new Error(`Database error: ${dbError.message}`);
     }
     
-    const fetchId = sourceFetch.id;
     let processedCount = 0;
     
     // Process each article
@@ -209,13 +230,21 @@ ${contentForAI}`
     }
     
     // Update the source fetch record
-    await supabase
-      .from('source_fetches')
-      .update({
-        articles_processed: processedCount,
-        status: 'completed'
-      })
-      .eq('id', fetchId);
+    try {
+      const { error: updateError } = await supabase
+        .from('source_fetches')
+        .update({
+          articles_processed: processedCount,
+          status: 'completed'
+        })
+        .eq('id', fetchId);
+        
+      if (updateError) {
+        console.error(`Error updating source fetch record:`, updateError);
+      }
+    } catch (updateError) {
+      console.error(`Exception updating source fetch record:`, updateError);
+    }
       
     return new Response(
       JSON.stringify({

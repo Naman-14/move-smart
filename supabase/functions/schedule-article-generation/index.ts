@@ -24,7 +24,7 @@ serve(async (req) => {
   }
   
   try {
-    console.log('Starting article generation scheduler');
+    console.log('Starting scheduled article generation');
     
     // Invoke the fetch-and-generate-articles function
     const response = await fetch(
@@ -36,7 +36,8 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          manualRun: false
+          manualRun: false,
+          scheduled: true
         })
       }
     );
