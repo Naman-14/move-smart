@@ -1,18 +1,34 @@
 
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ChevronRight, Calendar, Tag } from 'lucide-react';
 import { useArticle, useArticles } from '@/hooks/useArticles';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ArticleCard from '@/components/ArticleCard';
 import EnhancedNewsletterForm from '@/components/EnhancedNewsletterForm';
 import { format } from 'date-fns';
+import { useEffect } from 'react';
+import { useToast } from '@/components/ui/use-toast';
 
 const ArticlePage = () => {
   const { slug } = useParams<{ slug: string }>();
   const { article, isLoading, error } = useArticle(slug || '');
+  const navigate = useNavigate();
+  const { toast } = useToast();
   
+  // Show toast if there's an error
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Error loading article",
+        description: "Could not load the requested article. Please try again.",
+        variant: "destructive"
+      });
+    }
+  }, [error, toast]);
+
   // Get related articles based on category and tags
   const { articles: relatedArticles } = useArticles({
     limit: 3,
@@ -52,16 +68,22 @@ const ArticlePage = () => {
         <main className="flex-grow container mx-auto px-4 py-8 text-center">
           <h1 className="text-2xl font-bold mb-4">Article Not Found</h1>
           <p className="mb-6">The article you're looking for doesn't exist or has been removed.</p>
-          <Link 
-            to="/" 
-            className="text-parrot-green hover:underline"
-          >
-            Return to home page
-          </Link>
+          <Button onClick={() => navigate('/')} variant="default">
+            Return to Home Page
+          </Button>
         </main>
         <Footer />
       </div>
     );
+  }
+
+  // Format the date properly or provide a fallback
+  let formattedDate;
+  try {
+    formattedDate = format(new Date(article.created_at), 'MMMM dd, yyyy');
+  } catch (e) {
+    formattedDate = 'Publication date unavailable';
+    console.error('Date formatting error:', e);
   }
 
   return (
@@ -94,7 +116,7 @@ const ArticlePage = () => {
           <div className="flex flex-wrap gap-2 items-center text-sm text-gray-500 mb-6">
             <span className="flex items-center">
               <Calendar size={14} className="mr-1" />
-              {format(new Date(article.created_at), 'MMMM dd, yyyy')}
+              {formattedDate}
             </span>
             
             <span className="flex items-center ml-4">
@@ -111,11 +133,18 @@ const ArticlePage = () => {
         
         {/* Featured Image */}
         <div className="container mx-auto px-4 mb-8">
-          <img 
-            src={article.cover_image_url} 
-            alt={article.title}
-            className="w-full h-auto object-cover rounded-xl max-h-[500px]"
-          />
+          {article.cover_image_url && (
+            <img 
+              src={article.cover_image_url} 
+              alt={article.title}
+              className="w-full h-auto object-cover rounded-xl max-h-[500px]"
+              onError={(e) => {
+                // Fallback if image fails to load
+                e.currentTarget.src = 'https://placehold.co/800x400/EEE/31343C?text=MoveSmart';
+                console.error('Failed to load article image:', article.cover_image_url);
+              }}
+            />
+          )}
         </div>
         
         {/* Article Content */}
@@ -128,15 +157,21 @@ const ArticlePage = () => {
               </div>
               
               {/* Main Content */}
-              <div
-                className="prose dark:prose-invert prose-lg max-w-none mb-8"
-                dangerouslySetInnerHTML={{ __html: article.content }}
-              />
+              {article.content ? (
+                <div
+                  className="prose dark:prose-invert prose-lg max-w-none mb-8"
+                  dangerouslySetInnerHTML={{ __html: article.content }}
+                />
+              ) : (
+                <div className="prose dark:prose-invert prose-lg max-w-none mb-8">
+                  <p>No content available for this article.</p>
+                </div>
+              )}
               
               {/* Tags */}
               <div className="mb-12">
                 <div className="flex flex-wrap gap-2">
-                  {article.tags.map((tag, index) => (
+                  {article.tags && Array.isArray(article.tags) && article.tags.map((tag, index) => (
                     <Badge key={index} variant="outline" className="hover:bg-gray-100">
                       {tag}
                     </Badge>
@@ -184,7 +219,7 @@ const ArticlePage = () => {
         <div className="container mx-auto px-4 py-12 mt-8 border-t border-gray-200 dark:border-gray-800">
           <h2 className="text-2xl font-bold mb-6">More From MoveSmart</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {filteredRelatedArticles.length === 3 ?
+            {filteredRelatedArticles.length > 0 ? 
               filteredRelatedArticles.map(article => (
                 <ArticleCard
                   key={article.id}
@@ -197,7 +232,10 @@ const ArticlePage = () => {
                 />
               )) :
               <div className="col-span-3 text-center text-gray-500 py-8">
-                No related articles found
+                <p>No related articles found</p>
+                <Button onClick={() => navigate('/')} className="mt-4" variant="outline">
+                  Explore All Articles
+                </Button>
               </div>
             }
           </div>

@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ArticleHero from '@/components/ArticleHero';
@@ -5,15 +6,15 @@ import CategoryTabs from '@/components/CategoryTabs';
 import ArticleCard from '@/components/ArticleCard';
 import TrendingSidebar from '@/components/TrendingSidebar';
 import ArticleCarousel from '@/components/ArticleCarousel';
-import FeaturedArticle from '@/components/FeaturedArticle';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import EnhancedNewsletterForm from '@/components/EnhancedNewsletterForm';
 import AdminControls from '@/components/AdminControls';
-import { Search, ArrowRight } from 'lucide-react';
+import { Search, ArrowRight, Loader2 } from 'lucide-react';
 import { useArticles } from '@/hooks/useArticles';
 import { format } from 'date-fns';
+import { useToast } from '@/components/ui/use-toast';
 
 // Categories data
 const categories = [
@@ -29,32 +30,45 @@ const categories = [
 
 const Homepage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [latestOffset, setLatestOffset] = useState(0);
+  const { toast } = useToast();
   
   // Fetch articles for different sections
-  const { articles: latestArticles, isLoading: isLoadingLatest } = useArticles({ 
+  const { 
+    articles: latestArticles, 
+    isLoading: isLoadingLatest,
+    hasMore: hasMoreLatest,
+    loadMore: loadMoreLatest
+  } = useArticles({ 
     limit: 4,
+    offset: latestOffset,
     ...(selectedCategory !== 'all' && { category: selectedCategory })
   });
   
-  const { articles: aiArticles } = useArticles({ 
+  const { articles: aiArticles, isLoading: isLoadingAi } = useArticles({ 
     limit: 3,
     category: 'ai'
   });
   
-  const { articles: fundingArticles } = useArticles({ 
+  const { articles: fundingArticles, isLoading: isLoadingFunding } = useArticles({ 
     limit: 3,
     category: 'funding'
   });
   
   // Fetch articles for the startups carousel
-  const { articles: startupArticles } = useArticles({
-    limit: 3,
+  const { articles: startupArticles, isLoading: isLoadingStartups } = useArticles({
+    limit: 5,
     category: 'startups'
   });
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId);
-    // Filter articles by category
+    setLatestOffset(0); // Reset pagination when changing category
+  };
+
+  const handleLoadMore = () => {
+    const newOffset = loadMoreLatest();
+    setLatestOffset(newOffset);
   };
 
   // Transform articles for the startups carousel
@@ -67,6 +81,7 @@ const Homepage = () => {
     slug: article.slug
   }));
 
+  // Use this data only if we don't have enough real articles
   const mockTrendingArticles = [
     {
       id: '1',
@@ -145,7 +160,7 @@ const Homepage = () => {
             <div className="lg:col-span-2">
               <h2 className="text-2xl font-bold mb-6">Latest Stories</h2>
               
-              {isLoadingLatest ? (
+              {isLoadingLatest && latestOffset === 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className="bg-gray-100 rounded-xl h-80 animate-pulse" />
@@ -167,12 +182,34 @@ const Homepage = () => {
                 </div>
               ) : (
                 <div className="text-center py-10 bg-gray-50 rounded-xl mb-8">
-                  <p className="text-gray-500">No articles found</p>
+                  <p className="text-gray-500 mb-4">No articles found in this category</p>
+                  <Button 
+                    onClick={() => {
+                      handleCategorySelect('all');
+                      toast({
+                        title: "Showing all categories",
+                        description: "We'll show you articles from all categories"
+                      });
+                    }}
+                  >
+                    View All Categories
+                  </Button>
                 </div>
               )}
               
               {/* Featured Category: AI */}
-              {aiArticles.length > 0 && (
+              {isLoadingAi ? (
+                <div className="mt-12 mb-10">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">AI Innovation</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="bg-gray-100 rounded-xl h-80 animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              ) : aiArticles.length > 0 ? (
                 <div className="mt-12 mb-10">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">AI Innovation</h2>
@@ -195,10 +232,21 @@ const Homepage = () => {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
               
               {/* Featured Category: Funding */}
-              {fundingArticles.length > 0 && (
+              {isLoadingFunding ? (
+                <div className="mt-12 mb-10">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">Latest Funding</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="bg-gray-100 rounded-xl h-80 animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              ) : fundingArticles.length > 0 ? (
                 <div className="mt-12 mb-10">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">Latest Funding</h2>
@@ -221,10 +269,17 @@ const Homepage = () => {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
               
               {/* Startup Profiles Carousel */}
-              {startupCarouselArticles.length > 0 && (
+              {isLoadingStartups ? (
+                <div className="mt-12 mb-10">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">Startup Profiles</h2>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl h-80 animate-pulse"></div>
+                </div>
+              ) : startupCarouselArticles.length > 0 ? (
                 <div className="mt-12 mb-10">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">Startup Profiles</h2>
@@ -250,12 +305,25 @@ const Homepage = () => {
                     </div>
                   </div>
                 </div>
-              )}
+              ) : null}
               
               <div className="text-center mt-8">
-                <Button variant="outline" className="border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800">
-                  Load More Stories
-                </Button>
+                {isLoadingLatest && latestOffset > 0 ? (
+                  <Button disabled variant="outline" className="border-gray-300">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading...
+                  </Button>
+                ) : hasMoreLatest ? (
+                  <Button 
+                    variant="outline" 
+                    className="border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
+                    onClick={handleLoadMore}
+                  >
+                    Load More Stories
+                  </Button>
+                ) : latestArticles.length > 0 ? (
+                  <p className="text-gray-500">You've reached the end of the articles</p>
+                ) : null}
               </div>
             </div>
             

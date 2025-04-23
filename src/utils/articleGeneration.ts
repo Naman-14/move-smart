@@ -52,12 +52,30 @@ export const triggerArticleGeneration = async () => {
       // Continue with normal invocation even if health check fails
     }
     
+    // Use different queries each time to get diverse content
+    const queries = [
+      'tech startups', 
+      'AI innovation', 
+      'fintech news',
+      'startup funding',
+      'climate tech',
+      'blockchain innovation',
+      'SaaS companies',
+      'tech acquisitions',
+      'startup founders',
+      'venture capital'
+    ];
+    
+    // Select a random query from the list
+    const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+    
     const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
       body: { 
         manualRun: true,
         debug: true, // Add debug flag
         clientTimestamp: new Date().toISOString(),
-        query: 'tech startups' // Always use tech startups as query to ensure relevant content
+        query: randomQuery,
+        articlesNeeded: 10 // Request more articles
       },
     });
     

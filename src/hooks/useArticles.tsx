@@ -21,17 +21,21 @@ interface UseArticlesOptions {
   category?: string;
   tags?: string[];
   featured?: boolean;
+  offset?: number; // Add offset for pagination
 }
 
 export const useArticles = ({
   limit = 10,
   category,
   tags = [],
-  featured = false
+  featured = false,
+  offset = 0
 }: UseArticlesOptions = {}) => {
   const [articles, setArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true); // Track if more articles exist
+  const [total, setTotal] = useState(0); // Track total article count
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,13 +44,41 @@ export const useArticles = ({
         setIsLoading(true);
         setError(null);
 
-        console.log(`Fetching articles with: limit=${limit}, category=${category}, tags=${JSON.stringify(tags)}, featured=${featured}`);
+        console.log(`Fetching articles with: limit=${limit}, offset=${offset}, category=${category}, tags=${JSON.stringify(tags)}, featured=${featured}`);
 
+        // First get the count of all matching articles (for pagination info)
+        const countQuery = supabase
+          .from('articles')
+          .select('id', { count: 'exact' })
+          .eq('visible', true);
+          
+        // Apply category filter if provided
+        if (category) {
+          countQuery.eq('category', category);
+        }
+
+        // Apply tags filter if provided
+        if (tags && tags.length > 0) {
+          countQuery.contains('tags', tags);
+        }
+        
+        const { count: totalCount, error: countError } = await countQuery;
+        
+        if (countError) {
+          console.error('Error fetching article count:', countError);
+        } else if (totalCount !== null) {
+          setTotal(totalCount);
+          setHasMore(offset + limit < totalCount);
+          console.log(`Found ${totalCount} total articles matching criteria`);
+        }
+
+        // Now fetch the actual articles
         let query = supabase
           .from('articles')
           .select('*')
           .eq('visible', true)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
 
         // Apply category filter if provided
         if (category) {
@@ -59,9 +91,6 @@ export const useArticles = ({
           query = query.contains('tags', tags);
         }
 
-        // Apply limit
-        query = query.limit(limit);
-
         console.log('Executing Supabase query for articles');
         const { data, error } = await query;
 
@@ -70,12 +99,21 @@ export const useArticles = ({
           throw new Error(error.message);
         }
 
-        if (data) {
+        if (data && data.length > 0) {
           console.log(`Fetched ${data.length} articles successfully`);
-          setArticles(data as Article[]);
+          // If offset > 0, we're loading more, so append to existing
+          if (offset > 0) {
+            setArticles(prev => [...prev, ...data] as Article[]);
+          } else {
+            setArticles(data as Article[]);
+          }
         } else {
           console.log('No articles returned from query');
-          setArticles([]);
+          if (offset === 0) {
+            setArticles([]);
+          }
+          // If we got no results and we're paginating, we've reached the end
+          setHasMore(false);
         }
       } catch (error: any) {
         console.error('Error fetching articles:', error);
@@ -91,9 +129,17 @@ export const useArticles = ({
     };
 
     fetchArticles();
-  }, [limit, category, JSON.stringify(tags), toast]);
+  }, [limit, offset, category, JSON.stringify(tags), featured, toast]);
 
-  return { articles, isLoading, error };
+  // Helper function to load more articles
+  const loadMore = () => {
+    if (hasMore && !isLoading) {
+      return offset + articles.length;
+    }
+    return offset;
+  };
+
+  return { articles, isLoading, error, hasMore, total, loadMore };
 };
 
 export const useArticle = (slug: string) => {
