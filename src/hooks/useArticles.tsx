@@ -39,8 +39,9 @@ export const useArticles = ({
         setIsLoading(true);
         setError(null);
 
+        // Use 'from' with type assertion to work around TypeScript limitations
         let query = supabase
-          .from('articles')
+          .from('articles' as any)
           .select('*')
           .eq('visible', true)
           .order('created_at', { ascending: false });
@@ -101,8 +102,9 @@ export const useArticle = (slug: string) => {
         setIsLoading(true);
         setError(null);
 
+        // Use 'from' with type assertion to work around TypeScript limitations
         const { data, error } = await supabase
-          .from('articles')
+          .from('articles' as any)
           .select('*')
           .eq('visible', true)
           .eq('slug', slug)
