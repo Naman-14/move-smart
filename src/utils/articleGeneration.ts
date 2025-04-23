@@ -2,6 +2,9 @@
 // Enhanced diagnostics and error handling for article generation
 import { supabase } from '@/integrations/supabase/client';
 
+// Import the Supabase URL and key from the client file
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+
 export const triggerArticleGeneration = async () => {
   try {
     // Start with clear beginning marker for logs
@@ -14,8 +17,8 @@ export const triggerArticleGeneration = async () => {
     // Add version information for debugging
     console.log('Client version info:', {
       timestamp: new Date().toISOString(),
-      clientUrl: supabase.supabaseUrl,
-      functionUrl: `${supabase.supabaseUrl}/functions/v1/fetch-and-generate-articles`
+      clientUrl: SUPABASE_URL,
+      functionUrl: `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`
     });
     
     // Detailed pre-invocation logging
@@ -24,10 +27,10 @@ export const triggerArticleGeneration = async () => {
     // First, check if we can simply fetch from the edge function endpoint (fallback)
     try {
       console.log('Attempting direct fetch to check edge function availability...');
-      const healthResponse = await fetch(`${supabase.supabaseUrl}/functions/v1/fetch-and-generate-articles/health`, {
+      const healthResponse = await fetch(`${SUPABASE_URL}/functions/v1/fetch-and-generate-articles/health`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
           'Content-Type': 'application/json',
         }
       });
