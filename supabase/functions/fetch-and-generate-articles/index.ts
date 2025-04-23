@@ -23,7 +23,12 @@ const SEARCH_QUERIES = [
   'startups',
   'funding',
   'AI startups',
-  'tech innovation'
+  'tech innovation',
+  'fintech',
+  'startup founders',
+  'venture capital',
+  'tech disruption',
+  'startup ecosystem'
 ];
 
 // Countries to rotate through
@@ -149,12 +154,12 @@ serve(async (req) => {
     const searchQuery = query || SEARCH_QUERIES[Math.floor(Math.random() * SEARCH_QUERIES.length)];
     const searchCountry = country || COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
     
-    console.log(`Using search query: ${searchQuery}, country: ${searchCountry}`);
+    console.log(`Using search query: "${searchQuery}", country: "${searchCountry}"`);
     
     // Fetch articles from GNews.io
     try {
-      const gnewsUrl = `https://gnews.io/api/v4/search?q=${searchQuery}&lang=en&country=${searchCountry}&max=5&token=${GNEWS_API_KEY}`;
-      console.log(`Fetching articles from: ${gnewsUrl.replace(GNEWS_API_KEY, 'API_KEY_REDACTED')}`);
+      const gnewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(searchQuery)}&lang=en&country=${searchCountry}&max=5&token=${GNEWS_API_KEY}`;
+      console.log(`Fetching articles from GNews API: ${gnewsUrl.replace(GNEWS_API_KEY, 'API_KEY_REDACTED')}`);
       
       const articlesResponse = await fetch(gnewsUrl);
       
@@ -165,9 +170,21 @@ serve(async (req) => {
       }
       
       const articlesData = await articlesResponse.json();
+      
+      if (!articlesData.articles || !Array.isArray(articlesData.articles)) {
+        console.error(`GNews API returned invalid data:`, articlesData);
+        throw new Error('GNews API returned invalid or empty data');
+      }
+      
       const articles = articlesData.articles || [];
       
       console.log(`Fetched ${articles.length} articles from GNews`);
+      console.log(`First article:`, articles.length > 0 ? {
+        title: articles[0].title,
+        url: articles[0].url,
+        hasImage: !!articles[0].image,
+        hasContent: !!articles[0].content
+      } : 'No articles');
       
       // Create a record of this fetch - with error handling for database operations
       let fetchId;
@@ -238,10 +255,18 @@ serve(async (req) => {
       // Process each article
       for (const article of articles) {
         try {
+          console.log(`Processing article: "${article.title}"`);
+          
+          // Check if article has required fields
+          if (!article.title || !article.description || !article.content || !article.url) {
+            console.warn(`Skipping article due to missing required fields: ${article.title || 'Untitled'}`);
+            continue;
+          }
+          
           // Check if we already have an article with this source URL
           const { data: existingArticle, error: checkError } = await supabase
             .from('articles')
-            .select('id')
+            .select('id, title')
             .eq('source_url', article.url)
             .maybeSingle();
             
@@ -251,7 +276,7 @@ serve(async (req) => {
           }
             
           if (existingArticle) {
-            console.log(`Article already exists for URL: ${article.url}`);
+            console.log(`Article already exists for URL: ${article.url} (Title: ${existingArticle.title})`);
             continue;
           }
           
@@ -260,10 +285,11 @@ serve(async (req) => {
 Title: ${article.title}
 Description: ${article.description}
 Content: ${article.content}
+Source URL: ${article.url}
           `;
           
           // Use OpenAI to rewrite the article
-          console.log(`Processing article: "${article.title}"`);
+          console.log(`Sending to OpenAI: "${article.title.substring(0, 30)}..."`);
           try {
             const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
@@ -322,7 +348,7 @@ ${contentForAI}`
               console.log(`Successfully parsed AI response for article: "${parsedAiContent.title}"`);
             } catch (e) {
               console.error('Failed to parse AI response as JSON:', e);
-              console.error('AI content:', aiContent.substring(0, 500) + '...');
+              console.error('AI content start:', aiContent.substring(0, 200) + '...');
               throw new Error('Failed to parse AI response as JSON');
             }
             
@@ -350,7 +376,7 @@ ${contentForAI}`
                 tags: parsedAiContent.tags,
                 category: parsedAiContent.category,
                 source_url: article.url,
-                visible: !manualRun // If manual run, set to false so admin can review
+                visible: true // Always make visible to show immediate results
               })
               .select()
               .single();
@@ -361,6 +387,7 @@ ${contentForAI}`
             }
             
             console.log(`Successfully processed article: ${parsedAiContent.title}`);
+            console.log(`Article stored with slug: ${slugResult}`);
             processedCount++;
           } catch (aiError) {
             console.error(`Error with OpenAI processing:`, aiError);
@@ -393,7 +420,8 @@ ${contentForAI}`
         JSON.stringify({
           success: true,
           message: `Successfully processed ${processedCount} of ${articles.length} articles`,
-          fetchId
+          fetchId,
+          articles_processed: processedCount
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

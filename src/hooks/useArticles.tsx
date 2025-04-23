@@ -40,6 +40,8 @@ export const useArticles = ({
         setIsLoading(true);
         setError(null);
 
+        console.log(`Fetching articles with: limit=${limit}, category=${category}, tags=${JSON.stringify(tags)}, featured=${featured}`);
+
         let query = supabase
           .from('articles')
           .select('*')
@@ -60,14 +62,20 @@ export const useArticles = ({
         // Apply limit
         query = query.limit(limit);
 
+        console.log('Executing Supabase query for articles');
         const { data, error } = await query;
 
         if (error) {
+          console.error('Supabase error fetching articles:', error);
           throw new Error(error.message);
         }
 
         if (data) {
+          console.log(`Fetched ${data.length} articles successfully`);
           setArticles(data as Article[]);
+        } else {
+          console.log('No articles returned from query');
+          setArticles([]);
         }
       } catch (error: any) {
         console.error('Error fetching articles:', error);
@@ -102,6 +110,7 @@ export const useArticle = (slug: string) => {
         setIsLoading(true);
         setError(null);
 
+        console.log(`Fetching individual article with slug: ${slug}`);
         const { data, error } = await supabase
           .from('articles')
           .select('*')
@@ -110,11 +119,16 @@ export const useArticle = (slug: string) => {
           .maybeSingle();
 
         if (error) {
+          console.error('Error fetching article:', error);
           throw new Error(error.message);
         }
 
         if (data) {
+          console.log(`Successfully fetched article: ${data.title}`);
           setArticle(data as Article);
+        } else {
+          console.log(`No article found with slug: ${slug}`);
+          setArticle(null);
         }
       } catch (error: any) {
         console.error('Error fetching article:', error);

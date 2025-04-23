@@ -62,6 +62,17 @@ serve(async (req) => {
       console.error('Error performing health check:', healthError);
     }
     
+    // Select a random topic to retrieve articles for
+    const topics = [
+      'startup funding', 
+      'tech innovation', 
+      'AI startups', 
+      'fintech news', 
+      'venture capital', 
+      'startup founders'
+    ];
+    const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+    
     // URL construction check
     const functionUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`;
     console.log('Constructing URL for function call:', functionUrl);
@@ -71,6 +82,7 @@ serve(async (req) => {
       manualRun: false,
       scheduled: true,
       debug: true,
+      query: randomTopic, // Use a random topic for variety
       diagnostics: {
         timestamp: new Date().toISOString(),
         source: 'schedule-article-generation',

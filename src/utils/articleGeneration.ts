@@ -56,7 +56,8 @@ export const triggerArticleGeneration = async () => {
       body: { 
         manualRun: true,
         debug: true, // Add debug flag
-        clientTimestamp: new Date().toISOString()
+        clientTimestamp: new Date().toISOString(),
+        query: 'tech startups' // Always use tech startups as query to ensure relevant content
       },
     });
     
