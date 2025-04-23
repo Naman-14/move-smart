@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -19,57 +18,60 @@ serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: corsHeaders
+      headers: corsHeaders,
     });
   }
-  
+
   try {
     console.log('Starting scheduled article generation');
-    
-    // Invoke the fetch-and-generate-articles function
+
+    // Invoke the fetch-and-generate-articles function with scheduled flag
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           manualRun: false,
-          scheduled: true
-        })
+          scheduled: true,
+        }),
       }
     );
-    
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('Failed to trigger article generation:', errorText);
       throw new Error(`Failed to trigger article generation: ${errorText}`);
     }
-    
+
     const result = await response.json();
-    
+
+    console.log('Scheduled article generation response:', result);
+
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Successfully scheduled article generation',
-        result
+        result,
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   } catch (error) {
     console.error('Error in schedule-article-generation:', error);
-    
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
       }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   }
