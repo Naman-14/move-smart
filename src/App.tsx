@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import Homepage from "./pages/Homepage";
 import NotFound from "./pages/NotFound";
 import ArticleView from "./pages/ArticleView";
+import ArticlePage from "./pages/ArticlePage";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Cookies from "./pages/Cookies";
@@ -81,7 +82,8 @@ const App = () => {
               <Route path="/cookies" element={<Cookies />} />
               <Route path="/explore-startups" element={<ExploreStartups />} />
               <Route path="/subscribe" element={<Subscribe />} />
-              <Route path="/article/:slug" element={<ArticleView />} />
+              <Route path="/article/:slug" element={<ArticlePage />} />
+              <Route path="/article/old/:slug" element={<ArticleView />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
