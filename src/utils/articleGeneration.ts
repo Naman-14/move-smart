@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -181,7 +180,6 @@ Structure it with a clear introduction, body, and conclusion.`;
     }
     
     const data = await response.json();
-    // Fix the syntax error by adding the dot in parts?.[0] (was missing the dot)
     return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
   } catch (err) {
     console.error("Gemini Error:", err);

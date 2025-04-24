@@ -25,7 +25,8 @@ const mockFeaturedArticle: Article = {
   visible: true,
   reading_time: 5,
   author: 'MoveSmart',
-  tags: ['productivity', 'saas', 'startup']
+  tags: ['productivity', 'saas', 'startup'],
+  date: '2023-04-15'
 };
 
 const mockArticles: Article[] = [
@@ -41,7 +42,8 @@ const mockArticles: Article[] = [
     visible: true,
     reading_time: 3,
     author: 'MoveSmart',
-    tags: ['ai', 'funding', 'tech']
+    tags: ['ai', 'funding', 'tech'],
+    date: '2023-04-10'
   },
   {
     id: 'article-002',
@@ -55,7 +57,8 @@ const mockArticles: Article[] = [
     visible: true,
     reading_time: 4,
     author: 'MoveSmart',
-    tags: ['saas', 'startup', 'tech']
+    tags: ['saas', 'startup', 'tech'],
+    date: '2023-04-05'
   },
   {
     id: 'article-003',
@@ -69,7 +72,8 @@ const mockArticles: Article[] = [
     visible: true,
     reading_time: 6,
     author: 'MoveSmart',
-    tags: ['fintech', 'emerging-markets', 'payments']
+    tags: ['fintech', 'emerging-markets', 'payments'],
+    date: '2023-03-28'
   }
 ];
 
@@ -86,7 +90,8 @@ const trendingArticles: Article[] = [
     visible: true,
     reading_time: 5,
     author: 'MoveSmart',
-    tags: ['fintech', 'api', 'infrastructure']
+    tags: ['fintech', 'api', 'infrastructure'],
+    date: '2023-04-18'
   },
   {
     id: 'trending-002',
@@ -100,7 +105,8 @@ const trendingArticles: Article[] = [
     visible: true,
     reading_time: 4,
     author: 'MoveSmart',
-    tags: ['payments', 'case-study', 'fintech']
+    tags: ['payments', 'case-study', 'fintech'],
+    date: '2023-04-14'
   },
   {
     id: 'trending-003',
@@ -114,7 +120,8 @@ const trendingArticles: Article[] = [
     visible: true,
     reading_time: 3,
     author: 'MoveSmart',
-    tags: ['design', 'valuation', 'acquisition']
+    tags: ['design', 'valuation', 'acquisition'],
+    date: '2023-04-08'
   },
   {
     id: 'trending-004',
@@ -128,7 +135,8 @@ const trendingArticles: Article[] = [
     visible: true,
     reading_time: 4,
     author: 'MoveSmart',
-    tags: ['community', 'platform', 'gaming']
+    tags: ['community', 'platform', 'gaming'],
+    date: '2023-04-02'
   }
 ];
 

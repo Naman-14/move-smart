@@ -15,6 +15,8 @@ export interface Article {
   category: string;
   author?: string;
   reading_time?: number;
+  visible?: boolean; // Add this property to match usage in Index.tsx
+  date?: string;     // Add this property to match usage in Index.tsx
 }
 
 interface UseArticlesOptions {

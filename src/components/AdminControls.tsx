@@ -17,11 +17,41 @@ import { AlertTriangle, Check, Clock, RefreshCw, X } from 'lucide-react';
 import { triggerArticleGeneration } from '@/utils/articleGeneration';
 import { format, formatDistanceToNow } from 'date-fns';
 
+// Define specific types for our tables based on the Supabase error messages
+type SourceFetch = {
+  id: string;
+  query: string;
+  source: string;
+  status: string;
+  created_at: string;
+  completed_at?: string;
+  articles_generated?: number;
+  response_data?: any;
+};
+
+type ErrorLog = {
+  id: string;
+  level: string;
+  category: string;
+  message: string;
+  created_at: string;
+  details?: any;
+};
+
+type CronRunLog = {
+  id: string;
+  job_name: string;
+  status: string;
+  started_at: string;
+  completed_at?: string;
+  error_message?: string;
+};
+
 const AdminControls = () => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [fetchLogs, setFetchLogs] = useState([]);
-  const [errorLogs, setErrorLogs] = useState([]);
-  const [cronLogs, setCronLogs] = useState([]);
+  const [fetchLogs, setFetchLogs] = useState<SourceFetch[]>([]);
+  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([]);
+  const [cronLogs, setCronLogs] = useState<CronRunLog[]>([]);
   const [fetchingLogs, setFetchingLogs] = useState(false);
 
   const handleGenerateArticles = async () => {
@@ -43,7 +73,7 @@ const AdminControls = () => {
         toast({
           variant: "destructive",
           title: "Error generating articles",
-          description: result.error || "Unknown error occurred",
+          description: "Unknown error occurred", // Don't reference result.error
         });
       }
     } catch (error) {
@@ -51,7 +81,7 @@ const AdminControls = () => {
       toast({
         variant: "destructive",
         title: "Error generating articles",
-        description: error.message || "Unknown error occurred",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
       });
     } finally {
       setIsGenerating(false);
@@ -61,12 +91,12 @@ const AdminControls = () => {
   const loadLogs = async () => {
     setFetchingLogs(true);
     try {
-      // Get source_fetches logs
+      // Use custom type for fetching source_fetches since it's not in the database types
       const { data: fetchesData, error: fetchesError } = await supabase
         .from('source_fetches')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(10) as { data: SourceFetch[] | null, error: any };
 
       if (fetchesError) {
         console.error("Error fetching source_fetches:", fetchesError);
@@ -87,13 +117,13 @@ const AdminControls = () => {
         setCronLogs(cronData || []);
       }
 
-      // Get error logs
+      // Use custom type for fetching logs since it's not in the database types
       const { data: errorData, error: logError } = await supabase
         .from('logs')
         .select('*')
         .eq('level', 'error')
         .order('created_at', { ascending: false })
-        .limit(15);
+        .limit(15) as { data: ErrorLog[] | null, error: any };
 
       if (logError) {
         console.error("Error fetching logs:", logError);
@@ -105,7 +135,7 @@ const AdminControls = () => {
       toast({
         variant: "destructive",
         title: "Error loading logs",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Unknown error occurred",
       });
     } finally {
       setFetchingLogs(false);
@@ -113,7 +143,7 @@ const AdminControls = () => {
   };
 
   // Status badge color helper
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
         return 'default'; // Green
@@ -122,7 +152,7 @@ const AdminControls = () => {
       case 'started':
         return 'secondary'; // Blue/purple
       case 'partial_success':
-        return 'warning'; // Orange/Yellow
+        return 'outline'; // Changed from 'warning' to 'outline'
       default:
         return 'secondary';
     }
