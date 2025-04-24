@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM';
 
 const supabase = createClient(
   SUPABASE_URL!,
@@ -28,6 +29,7 @@ serve(async (req) => {
     console.log('Environment check:');
     console.log('- SUPABASE_URL present:', !!SUPABASE_URL);
     console.log('- SUPABASE_SERVICE_ROLE_KEY present:', !!SUPABASE_SERVICE_ROLE_KEY);
+    console.log('- GEMINI_API_KEY present:', !!GEMINI_API_KEY);
     
     // Verify the supabase client is initialized properly
     console.log('- Supabase client initialized:', !!supabase);
@@ -62,78 +64,103 @@ serve(async (req) => {
       console.error('Error performing health check:', healthError);
     }
     
-    // Select a random topic to retrieve articles for
-    const topics = [
-      'startup funding', 
-      'tech innovation', 
-      'AI startups', 
-      'fintech news', 
-      'venture capital', 
-      'startup founders'
+    // Define topic categories to ensure we generate content for all pages
+    const categories = [
+      'startups', 
+      'funding', 
+      'ai', 
+      'fintech', 
+      'case-studies', 
+      'blockchain', 
+      'climate-tech'
     ];
-    const randomTopic = topics[Math.floor(Math.random() * topics.length)];
     
-    // URL construction check
-    const functionUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`;
-    console.log('Constructing URL for function call:', functionUrl);
-
-    // Invoke the fetch-and-generate-articles function with scheduled flag and diagnostic info
-    const requestBody = JSON.stringify({
-      manualRun: false,
-      scheduled: true,
-      debug: true,
-      query: randomTopic, // Use a random topic for variety
-      diagnostics: {
-        timestamp: new Date().toISOString(),
-        source: 'schedule-article-generation',
-      }
-    });
+    let successCount = 0;
     
-    console.log('Request body:', requestBody);
-    
-    console.log('About to fetch the fetch-and-generate-articles endpoint...');
-    const response = await fetch(
-      functionUrl,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: requestBody,
-      }
-    );
-    
-    console.log('Fetch completed with status:', response.status);
-    console.log('Response status text:', response.statusText);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to trigger article generation. Status:', response.status);
-      console.error('Error response body:', errorText);
+    // Process multiple categories to ensure good content coverage
+    for (const category of categories) {
+      // Select appropriate query based on category
+      let query = '';
       
-      // Try to parse the error response for more details
-      try {
-        const errorJson = JSON.parse(errorText);
-        console.error('Parsed error details:', errorJson);
-      } catch (e) {
-        // Error text wasn't valid JSON
+      switch(category) {
+        case 'startups':
+          query = 'startup innovation OR unicorn startup';
+          break;
+        case 'funding':
+          query = 'venture capital funding OR investment round';
+          break;
+        case 'ai':
+          query = 'artificial intelligence breakthrough OR AI startup';
+          break;
+        case 'fintech':
+          query = 'financial technology innovation OR digital banking';
+          break;
+        case 'case-studies':
+          query = 'startup success story OR business case study';
+          break;
+        case 'blockchain':
+          query = 'blockchain technology OR crypto innovation';
+          break;
+        case 'climate-tech':
+          query = 'climate technology OR sustainable startup';
+          break;
+        default:
+          query = 'tech startup';
       }
       
-      throw new Error(`Failed to trigger article generation (${response.status}): ${errorText}`);
+      const functionUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`;
+      console.log('Invoking function URL:', functionUrl);
+
+      // Invoke the fetch-and-generate-articles function 
+      const response = await fetch(
+        functionUrl,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            manualRun: false,
+            scheduled: true,
+            debug: true,
+            query: query,
+            targetCategory: category,
+            articlesNeeded: 3, // Generate 3 articles per category
+            useAI: true,
+            diagnostics: {
+              timestamp: new Date().toISOString(),
+              source: 'schedule-article-generation'
+            }
+          }),
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Failed to generate articles for ${category}. Status: ${response.status}`);
+        console.error('Error response:', errorText);
+      } else {
+        const result = await response.json();
+        console.log(`Successfully generated ${category} articles:`, result);
+        if (result.articles) {
+          successCount += result.articles.length;
+        }
+      }
+      
+      // Delay between requests to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    const result = await response.json();
-    console.log('Parsed JSON response:', result);
-
     console.log('=== SCHEDULED ARTICLE GENERATION COMPLETE ===');
+    console.log(`Total articles generated: ${successCount}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Successfully scheduled article generation',
         timestamp: new Date().toISOString(),
-        result,
+        articlesGenerated: successCount
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

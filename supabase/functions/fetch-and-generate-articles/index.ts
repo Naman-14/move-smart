@@ -46,7 +46,7 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const GNEWS_API_KEY = Deno.env.get('GNEWS_API_KEY') || '90e92cf05deecdbbb043dcc040b97c5e'; // Use provided key
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM'; // Use provided Gemini key
     
     // Check for presence of required env variables
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -86,7 +86,7 @@ serve(async (req) => {
             has_supabase_url: !!SUPABASE_URL,
             has_service_role_key: !!SUPABASE_SERVICE_ROLE_KEY,
             has_gnews_api_key: !!GNEWS_API_KEY,
-            has_openai_api_key: !!OPENAI_API_KEY,
+            has_gemini_api_key: !!GEMINI_API_KEY,
           },
           supabase_connection: !tablesError ? 'working' : 'error',
           source_fetches_table: source_fetches_table_exists,
@@ -205,10 +205,10 @@ serve(async (req) => {
     // If no target category is provided, use the first one as default
     const category = targetCategory || categories[Math.floor(Math.random() * categories.length)];
     
-    // Function to enhance content with AI
-    async function enhanceWithAI(title, description, content) {
-      if (!useAI || !OPENAI_API_KEY) {
-        console.log("AI enhancement skipped: useAI=", useAI, "has OpenAI key=", !!OPENAI_API_KEY);
+    // Function to enhance content with Gemini AI
+    async function enhanceWithGemini(title, description, content, category) {
+      if (!useAI || !GEMINI_API_KEY) {
+        console.log("AI enhancement skipped: useAI=", useAI, "has Gemini key=", !!GEMINI_API_KEY);
         return { 
           enhancedContent: content ? `<p>${description || ''}</p><p>${content || ''}</p>` : `<p>${description || 'No content available.'}</p>`,
           enhancedSummary: description || 'No summary available.' 
@@ -216,9 +216,10 @@ serve(async (req) => {
       }
       
       try {
-        console.log("Enhancing content with OpenAI for:", title.substring(0, 30) + "...");
+        console.log("Enhancing content with Gemini for:", title.substring(0, 30) + "...");
         
-        const prompt = `
+        // Create prompts for content and summary
+        const contentPrompt = `
         You are a professional tech journalist writing for MoveSmart, a tech startup news platform.
         
         Here's a news article about "${title}" with this description: "${description}".
@@ -247,67 +248,71 @@ serve(async (req) => {
         Article description: "${description}"
         `;
         
-        // OpenAI API call for enhanced content
-        const contentResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
+        // Call Gemini API for content generation
+        const contentResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, {
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{
-              role: 'user',
-              content: prompt
-            }],
-            temperature: 0.7,
+            contents: [{ parts: [{ text: contentPrompt }] }],
+            generationConfig: {
+              temperature: 0.7,
+              topP: 0.8,
+              topK: 40
+            }
           })
         });
         
         if (!contentResponse.ok) {
-          const errorData = await contentResponse.text();
-          console.error("OpenAI API error for content:", errorData);
-          throw new Error(`OpenAI API error: ${contentResponse.status}`);
+          const errorText = await contentResponse.text();
+          console.error("Gemini API Error for content:", errorText);
+          throw new Error(`Gemini API error: ${contentResponse.status}`);
         }
         
         const contentResult = await contentResponse.json();
-        const enhancedContent = contentResult.choices[0].message.content;
+        const enhancedContent = contentResult?.candidates?.[0]?.content?.parts?.[0]?.text || 
+                               "No content was generated. Please try again later.";
         
-        // OpenAI API call for summary
-        const summaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
+        // Call Gemini API for summary generation
+        const summaryResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, {
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{
-              role: 'user',
-              content: summaryPrompt
-            }],
-            temperature: 0.7,
-            max_tokens: 200
+            contents: [{ parts: [{ text: summaryPrompt }] }],
+            generationConfig: {
+              temperature: 0.4,
+              topP: 0.95,
+              maxOutputTokens: 100
+            }
           })
         });
         
         if (!summaryResponse.ok) {
-          const errorData = await summaryResponse.text();
-          console.error("OpenAI API error for summary:", errorData);
-          throw new Error(`OpenAI API error: ${summaryResponse.status}`);
+          const errorText = await summaryResponse.text();
+          console.error("Gemini API Error for summary:", errorText);
+          throw new Error(`Gemini API error: ${summaryResponse.status}`);
         }
         
         const summaryResult = await summaryResponse.json();
-        const enhancedSummary = summaryResult.choices[0].message.content;
+        const enhancedSummary = summaryResult?.candidates?.[0]?.content?.parts?.[0]?.text || 
+                               "No summary was generated. Please try again later.";
         
-        console.log("AI enhancement successful");
+        console.log("AI enhancement successful with Gemini");
+        
+        // Format the content as HTML if it's not already
+        const formattedContent = enhancedContent.includes('<p>') 
+          ? enhancedContent 
+          : enhancedContent.split('\n\n').map(para => `<p>${para}</p>`).join('');
         
         return {
-          enhancedContent,
+          enhancedContent: formattedContent,
           enhancedSummary: enhancedSummary.replace(/"/g, '')
         };
       } catch (error) {
-        console.error("Error enhancing content with AI:", error);
+        console.error("Error enhancing content with Gemini:", error);
         return { 
           enhancedContent: content ? `<p>${description || ''}</p><p>${content || ''}</p>` : `<p>${description || 'No content available.'}</p>`,
           enhancedSummary: description || 'No summary available.'
@@ -334,11 +339,12 @@ serve(async (req) => {
           ? stripHtml(article.content).result 
           : article.description || 'No content available for this article.';
         
-        // Add AI enhancement
-        const { enhancedContent, enhancedSummary } = await enhanceWithAI(
+        // Add AI enhancement with Gemini
+        const { enhancedContent, enhancedSummary } = await enhanceWithGemini(
           article.title,
           article.description,
-          cleanContent
+          cleanContent,
+          category
         );
         
         // Generate tags based on title, content, and category
@@ -371,6 +377,18 @@ serve(async (req) => {
         // Ensure unique tags
         const uniqueTags = [...new Set(tags)];
         
+        // Calculate estimated reading time
+        const wordCount = enhancedContent.split(/\s+/).length;
+        const readingTime = Math.max(1, Math.round(wordCount / 200)); // Avg reading speed 200wpm
+        
+        // Generate random author names
+        const authorNames = [
+          "Emma Johnson", "Michael Chen", "Sarah Patel", "David Okonkwo", 
+          "Aisha Rahman", "Tomas Rodriguez", "Zoe Williams", "Ryan Kim", 
+          "Maya Gupta", "James Wilson", "Leila Martinez", "Noah Taylor"
+        ];
+        const author = authorNames[Math.floor(Math.random() * authorNames.length)];
+        
         processedArticles.push({
           title: article.title,
           slug,
@@ -382,7 +400,9 @@ serve(async (req) => {
           visible: true,
           source_url: article.url,
           source_name: article.source?.name || 'News Source',
-          publication_date: article.publishedAt
+          publication_date: article.publishedAt,
+          reading_time: readingTime,
+          author: author
         });
         
         console.log(`Processed article: "${article.title.substring(0, 30)}..." with category ${category}`);

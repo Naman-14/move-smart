@@ -1,9 +1,43 @@
 
-// Enhanced diagnostics and error handling for article generation
 import { supabase } from '@/integrations/supabase/client';
 
 // Import the Supabase URL and key from the client file
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+
+// Function to generate content with Gemini (client-side fallback)
+async function generateWithGemini(promptText: string) {
+  const apiKey = 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM';
+  
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.8,
+            topK: 40
+          }
+        })
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Gemini API Error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Error generating content.";
+  } catch (error) {
+    console.error('Error generating content with Gemini:', error);
+    return "Failed to generate content. Please try again later.";
+  }
+}
 
 export const triggerArticleGeneration = async () => {
   try {
@@ -49,7 +83,6 @@ export const triggerArticleGeneration = async () => {
       }
     } catch (healthError) {
       console.warn('Health check failed with error:', healthError);
-      // Continue with normal invocation even if health check fails
     }
     
     // Generate content for each category to ensure all sections are populated
@@ -59,32 +92,32 @@ export const triggerArticleGeneration = async () => {
     
     let successCount = 0;
     
-    // Process each category with specific sources to generate diverse, high-quality content
+    // Process each category with specific sources to generate diverse content
     for (const category of categories) {
       let query = '';
       
       // Select appropriate sources and queries based on category
       switch(category) {
         case 'startups':
-          query = 'TechCrunch startup funding OR YCombinator startups';
+          query = 'TechCrunch startup OR YCombinator startup';
           break;
         case 'funding':
-          query = 'venture capital funding rounds OR series A B C funding';
+          query = 'venture capital funding OR series funding';
           break;
         case 'ai':
-          query = 'artificial intelligence innovation OR AI startup breakthroughs';
+          query = 'artificial intelligence startup OR AI innovation';
           break;
         case 'fintech':
-          query = 'financial technology disruption OR digital banking innovation';
+          query = 'financial technology OR digital banking';
           break;
         case 'case-studies':
-          query = 'startup success stories OR business case studies';
+          query = 'startup case study OR business success story';
           break;
         case 'blockchain':
-          query = 'blockchain technology innovation OR web3 startups';
+          query = 'blockchain startup OR web3 technology';
           break;
         case 'climate-tech':
-          query = 'climate technology startups OR sustainable innovation';
+          query = 'climate technology OR sustainable innovation';
           break;
         default:
           query = 'tech startup innovation';
@@ -93,7 +126,7 @@ export const triggerArticleGeneration = async () => {
       console.log(`Generating content for category "${category}" with query: "${query}"`);
       
       try {
-        // For each category, generate 3-5 articles to ensure good content coverage
+        // For each category, generate articles to ensure good content coverage
         const { data, error } = await supabase.functions.invoke('fetch-and-generate-articles', {
           body: { 
             manualRun: true,

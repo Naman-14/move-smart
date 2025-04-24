@@ -2,6 +2,7 @@
 import HeroCarousel from '@/components/HeroCarousel';
 import { useArticles } from '@/hooks/useArticles';
 import { format } from 'date-fns';
+import { Clock } from 'lucide-react';
 
 const HeroSection = () => {
   const { articles, isLoading } = useArticles({ limit: 5 });
@@ -13,9 +14,10 @@ const HeroSection = () => {
     excerpt: article.summary,
     imageUrl: article.cover_image_url,
     category: article.category,
-    author: 'MoveSmart',
+    author: article.author || 'MoveSmart',
     publishedAt: format(new Date(article.created_at), 'MMMM dd, yyyy'),
-    slug: article.slug
+    slug: article.slug,
+    readingTime: article.reading_time || Math.ceil(article.content?.length / 1000) || 3
   }));
 
   return (
@@ -23,7 +25,7 @@ const HeroSection = () => {
       {isLoading ? (
         <div className="h-[500px] md:h-[600px] bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
       ) : (
-        <HeroCarousel slides={heroSlides} />
+        <HeroCarousel slides={heroSlides} autoplayInterval={2000} />
       )}
     </section>
   );
