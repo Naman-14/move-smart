@@ -22,60 +22,33 @@ const AdminControls = () => {
     try {
       setIsGenerating(true);
       setDiagnosticInfo(null);
-      
-      // Clear previous logs
       setLogs([]);
       
-      // Intercept console logs for display in UI
+      // Capture console logs for display
       const originalConsoleLog = console.log;
       const originalConsoleError = console.error;
-      const originalConsoleWarn = console.warn;
       
-      // Helper to add logs to state
-      const addLog = (type: string, ...args: any[]) => {
-        const logEntry = `[${type}] ${args.map(arg => 
+      const logCapture = (type: string) => (...args: any[]) => {
+        const logMessage = args.map(arg => 
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' ')}`;
+        ).join(' ');
         
-        setLogs(prev => [...prev, logEntry]);
-        return args;
+        setLogs(prev => [...prev, `[${type}] ${logMessage}`]);
       };
       
-      // Override console methods to capture logs
-      console.log = (...args) => {
-        originalConsoleLog(...addLog('INFO', ...args));
-      };
+      console.log = logCapture('INFO');
+      console.error = logCapture('ERROR');
       
-      console.error = (...args) => {
-        originalConsoleError(...addLog('ERROR', ...args));
-      };
-      
-      console.warn = (...args) => {
-        originalConsoleWarn(...addLog('WARN', ...args));
-      };
-      
-      // Clear any existing logs
-      originalConsoleLog('Starting article generation process...');
-      
-      // Store start time for performance metrics
       const startTime = Date.now();
-      
-      // Add diagnostic info about environment and client state
-      setDiagnosticInfo('Initiating content generation...');
       
       const result = await triggerArticleGeneration();
       
-      // Calculate execution time
       const executionTime = Date.now() - startTime;
-      console.log(`Generation completed in ${executionTime}ms`);
       
-      // Update stats
-      if (result) {
-        setGenerationStats({
-          success: result.articlesGenerated || 0,
-          error: result.errorsEncountered || 0
-        });
-      }
+      setGenerationStats({
+        success: result.articlesGenerated || 0,
+        error: result.errorsEncountered || 0
+      });
       
       setDiagnosticInfo(`Generation completed in ${executionTime}ms. Generated ${result.articlesGenerated || 0} articles.`);
       
@@ -88,25 +61,13 @@ const AdminControls = () => {
       // Restore original console methods
       console.log = originalConsoleLog;
       console.error = originalConsoleError;
-      console.warn = originalConsoleWarn;
     } catch (error) {
       console.error('Error in handleGenerateArticles:', error);
       
-      // Detailed error diagnostic info
-      let errorMessage = 'Unknown error';
-      let errorDetails = '';
+      let errorMessage = error instanceof Error ? error.message : String(error);
       
-      if (error instanceof Error) {
-        errorMessage = `${error.name}: ${error.message}`;
-        errorDetails = error.stack || '';
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error && typeof error === 'object') {
-        errorMessage = JSON.stringify(error);
-      }
-      
-      setDiagnosticInfo(`Error: ${errorMessage}\n\nDetails:\n${errorDetails}`);
-      setShowDiagnostics(true); // Auto-expand diagnostics on error
+      setDiagnosticInfo(`Error: ${errorMessage}`);
+      setShowDiagnostics(true);
       
       toast({
         title: 'Error Generating Content',
@@ -122,13 +83,11 @@ const AdminControls = () => {
     <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg mb-6">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Admin Controls</h3>
+          <h3 className="text-lg font-semibold">Article Generation</h3>
           
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-300">
-              <RefreshCw className="w-3 h-3 mr-1" /> Auto-generates hourly
-            </Badge>
-          </div>
+          <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-300">
+            <RefreshCw className="w-3 h-3 mr-1" /> Automatic Hourly Updates
+          </Badge>
         </div>
         
         <div className="flex flex-wrap gap-4">
@@ -138,7 +97,7 @@ const AdminControls = () => {
             className="gap-2"
           >
             {isGenerating && <Loader2 className="h-4 w-4 animate-spin" />}
-            Generate New Articles
+            Generate Articles Now
           </Button>
           
           <Button 
@@ -149,11 +108,9 @@ const AdminControls = () => {
           </Button>
         </div>
         
-        {/* Stats display */}
         {(generationStats.success > 0 || generationStats.error > 0) && (
           <div className="flex items-center gap-4 mt-2">
             <div className="flex items-center">
-              <span className="text-sm text-gray-500 dark:text-gray-400 mr-1">Last run:</span>
               <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                 {generationStats.success} articles generated
               </Badge>
@@ -172,65 +129,35 @@ const AdminControls = () => {
             onOpenChange={setExpandedInfo}
             className="mt-4 border rounded-md bg-white dark:bg-gray-800"
           >
-            <div className="flex items-center justify-between px-4 py-2 border-b">
-              <div className="flex items-center space-x-2">
-                <Terminal className="h-4 w-4" />
-                <h4 className="text-sm font-semibold">Diagnostic Information</h4>
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-9 p-0">
-                  {expandedInfo ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  <span className="sr-only">Toggle</span>
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-            
-            <CollapsibleContent>
+            {diagnosticInfo && (
               <div className="p-4">
-                {diagnosticInfo && (
-                  <div className="mb-4">
-                    <Alert variant="default">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Status</AlertTitle>
-                      <AlertDescription className="whitespace-pre-wrap font-mono text-xs overflow-x-auto max-h-40">
-                        {diagnosticInfo}
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                )}
-                
-                {logs.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="text-sm font-medium mb-2">Execution Logs:</h5>
-                    <div className="bg-black text-green-400 p-3 rounded-md font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
-                      {logs.map((log, i) => (
-                        <div 
-                          key={i} 
-                          className={cn(
-                            "py-1", 
-                            log.includes('[ERROR]') ? "text-red-400" : 
-                            log.includes('[WARN]') ? "text-yellow-400" : 
-                            "text-green-400"
-                          )}
-                        >
-                          {log}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className="mt-4">
-                  <h5 className="text-sm font-medium mb-2">Troubleshooting Steps:</h5>
-                  <ul className="list-disc pl-5 text-sm space-y-1">
-                    <li>Check that all API keys are set correctly in Supabase Secrets</li>
-                    <li>Verify network connectivity to Supabase and Gemini API</li>
-                    <li>Check Edge Function logs in Supabase Dashboard</li>
-                    <li>Ensure your Supabase project is on an active plan</li>
-                  </ul>
-                </div>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Generation Status</AlertTitle>
+                  <AlertDescription className="whitespace-pre-wrap font-mono text-xs">
+                    {diagnosticInfo}
+                  </AlertDescription>
+                </Alert>
               </div>
-            </CollapsibleContent>
+            )}
+            
+            {logs.length > 0 && (
+              <div className="bg-black text-green-400 p-3 rounded-md font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                {logs.map((log, i) => (
+                  <div 
+                    key={i} 
+                    className={cn(
+                      "py-1", 
+                      log.includes('[ERROR]') ? "text-red-400" : 
+                      log.includes('[WARN]') ? "text-yellow-400" : 
+                      "text-green-400"
+                    )}
+                  >
+                    {log}
+                  </div>
+                ))}
+              </div>
+            )}
           </Collapsible>
         )}
       </div>

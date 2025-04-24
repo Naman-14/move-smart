@@ -19,6 +19,7 @@ export type Database = {
           id: string
           reading_time: number | null
           slug: string
+          source_url: string | null
           summary: string
           tags: string[] | null
           title: string
@@ -33,6 +34,7 @@ export type Database = {
           id?: string
           reading_time?: number | null
           slug: string
+          source_url?: string | null
           summary: string
           tags?: string[] | null
           title: string
@@ -47,10 +49,38 @@ export type Database = {
           id?: string
           reading_time?: number | null
           slug?: string
+          source_url?: string | null
           summary?: string
           tags?: string[] | null
           title?: string
           visible?: boolean | null
+        }
+        Relationships: []
+      }
+      cron_run_logs: {
+        Row: {
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          job_name: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          job_name: string
+          started_at?: string
+          status: string
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          job_name?: string
+          started_at?: string
+          status?: string
         }
         Relationships: []
       }
