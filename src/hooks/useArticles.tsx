@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -14,6 +13,8 @@ export interface Article {
   tags: string[];
   created_at: string;
   category: string;
+  author?: string;
+  reading_time?: number;
 }
 
 interface UseArticlesOptions {

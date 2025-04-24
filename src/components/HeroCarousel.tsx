@@ -12,9 +12,10 @@ interface HeroSlide {
   excerpt: string;
   imageUrl: string;
   category: string;
-  author?: string;
+  author: string;
   publishedAt: string;
   slug: string;
+  readingTime: number;
 }
 
 interface HeroCarouselProps {

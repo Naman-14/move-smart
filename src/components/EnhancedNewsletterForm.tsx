@@ -40,6 +40,7 @@ const EnhancedNewsletterForm = () => {
     setIsLoading(true);
     
     try {
+      // Use the correct table name and fields
       const { error } = await supabase
         .from('subscriptions')
         .insert({

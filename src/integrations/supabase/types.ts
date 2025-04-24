@@ -11,11 +11,13 @@ export type Database = {
     Tables: {
       articles: {
         Row: {
+          author: string | null
           category: string
           content: string
           cover_image_url: string
           created_at: string | null
           id: string
+          reading_time: number | null
           slug: string
           summary: string
           tags: string[] | null
@@ -23,11 +25,13 @@ export type Database = {
           visible: boolean | null
         }
         Insert: {
+          author?: string | null
           category: string
           content: string
           cover_image_url: string
           created_at?: string | null
           id?: string
+          reading_time?: number | null
           slug: string
           summary: string
           tags?: string[] | null
@@ -35,16 +39,42 @@ export type Database = {
           visible?: boolean | null
         }
         Update: {
+          author?: string | null
           category?: string
           content?: string
           cover_image_url?: string
           created_at?: string | null
           id?: string
+          reading_time?: number | null
           slug?: string
           summary?: string
           tags?: string[] | null
           title?: string
           visible?: boolean | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          name: string | null
+          region: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          name?: string | null
+          region?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string | null
+          region?: string | null
         }
         Relationships: []
       }

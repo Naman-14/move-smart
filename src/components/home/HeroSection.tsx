@@ -2,7 +2,6 @@
 import HeroCarousel from '@/components/HeroCarousel';
 import { useArticles } from '@/hooks/useArticles';
 import { format } from 'date-fns';
-import { Clock } from 'lucide-react';
 
 const HeroSection = () => {
   const { articles, isLoading } = useArticles({ limit: 5 });
