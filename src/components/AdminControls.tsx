@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,25 +16,24 @@ import { AlertTriangle, Check, Clock, RefreshCw, X } from 'lucide-react';
 import { triggerArticleGeneration } from '@/utils/articleGeneration';
 import { format, formatDistanceToNow } from 'date-fns';
 
-// Define specific types for our tables based on the Supabase error messages
 type SourceFetch = {
   id: string;
   query: string;
   source: string;
-  status: string;
+  status: 'started' | 'fetched' | 'completed' | 'error' | 'partial_success';
   created_at: string;
-  completed_at?: string;
-  articles_generated?: number;
+  completed_at?: string | null;
+  articles_generated?: number | null;
   response_data?: any;
 };
 
 type ErrorLog = {
   id: string;
-  level: string;
+  level: 'debug' | 'info' | 'warning' | 'error' | 'critical';
   category: string;
   message: string;
-  created_at: string;
   details?: any;
+  created_at: string;
 };
 
 type CronRunLog = {
@@ -73,7 +71,7 @@ const AdminControls = () => {
         toast({
           variant: "destructive",
           title: "Error generating articles",
-          description: "Unknown error occurred", // Don't reference result.error
+          description: "Unknown error occurred",
         });
       }
     } catch (error) {
@@ -91,12 +89,11 @@ const AdminControls = () => {
   const loadLogs = async () => {
     setFetchingLogs(true);
     try {
-      // Use custom type for fetching source_fetches since it's not in the database types
       const { data: fetchesData, error: fetchesError } = await supabase
         .from('source_fetches')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10) as { data: SourceFetch[] | null, error: any };
+        .limit(10);
 
       if (fetchesError) {
         console.error("Error fetching source_fetches:", fetchesError);
@@ -104,7 +101,6 @@ const AdminControls = () => {
         setFetchLogs(fetchesData || []);
       }
 
-      // Get cron_run_logs
       const { data: cronData, error: cronError } = await supabase
         .from('cron_run_logs')
         .select('*')
@@ -117,13 +113,12 @@ const AdminControls = () => {
         setCronLogs(cronData || []);
       }
 
-      // Use custom type for fetching logs since it's not in the database types
       const { data: errorData, error: logError } = await supabase
         .from('logs')
         .select('*')
         .eq('level', 'error')
         .order('created_at', { ascending: false })
-        .limit(15) as { data: ErrorLog[] | null, error: any };
+        .limit(15);
 
       if (logError) {
         console.error("Error fetching logs:", logError);
@@ -142,17 +137,16 @@ const AdminControls = () => {
     }
   };
 
-  // Status badge color helper
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'default'; // Green
+        return 'default';
       case 'error':
-        return 'destructive'; // Red
+        return 'destructive';
       case 'started':
-        return 'secondary'; // Blue/purple
+        return 'secondary';
       case 'partial_success':
-        return 'outline'; // Changed from 'warning' to 'outline'
+        return 'outline';
       default:
         return 'secondary';
     }

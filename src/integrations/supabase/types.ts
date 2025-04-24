@@ -84,6 +84,66 @@ export type Database = {
         }
         Relationships: []
       }
+      logs: {
+        Row: {
+          category: string
+          created_at: string
+          details: Json | null
+          id: string
+          level: string
+          message: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          level: string
+          message: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          level?: string
+          message?: string
+        }
+        Relationships: []
+      }
+      source_fetches: {
+        Row: {
+          articles_generated: number | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          query: string
+          response_data: Json | null
+          source: string
+          status: string
+        }
+        Insert: {
+          articles_generated?: number | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          query: string
+          response_data?: Json | null
+          source: string
+          status: string
+        }
+        Update: {
+          articles_generated?: number | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          query?: string
+          response_data?: Json | null
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           created_at: string | null
