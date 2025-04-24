@@ -39,13 +39,36 @@ serve(async (req) => {
       query = 'tech startups', 
       articlesNeeded = 5,
       targetCategory = null,
-      useAI = true
+      useAI = true,
+      clientTimestamp = null
     } = input;
     
-    console.log('Function parameters:', { manualRun, debug, query, articlesNeeded, targetCategory, useAI });
+    console.log('Function parameters:', { manualRun, debug, query, articlesNeeded, targetCategory, useAI, clientTimestamp });
+    
+    // Log function execution to our tracking table
+    try {
+      const { error: logError } = await supabase
+        .from('source_fetches')
+        .insert({
+          source: 'gnews',
+          query: query,
+          status: 'started',
+          params: { query, articlesNeeded, targetCategory }
+        });
+      
+      if (logError) {
+        console.warn('Could not log execution start to source_fetches table:', logError);
+        // Continue execution even if logging fails
+      }
+    } catch (logErr) {
+      console.warn('Error logging execution start:', logErr);
+      // Continue execution even if logging fails
+    }
+    
+    let fetchId: string | null = null;
     
     // Enhanced content generation with Gemini
-    async function enhanceWithGemini(title: string, description: string) {
+    async function enhanceWithGemini(title: string, description: string, category: string) {
       if (!useAI || !GEMINI_API_KEY) {
         return {
           enhancedContent: description || 'No content available.',
@@ -54,10 +77,26 @@ serve(async (req) => {
       }
       
       try {
-        const contentPrompt = `Write a unique, professional article based on this news. Title: "${title}". Description: "${description}"`;
+        const contentPrompt = `
+Write a professional, original, and engaging article about the following topic in the ${category} industry:
+Title: "${title}"
+Base information: "${description}"
+
+The article should:
+1. Be detailed and informative (at least 800 words)
+2. Include relevant industry insights
+3. Be structured with clear sections
+4. Be engaging and reader-friendly
+5. Be completely plagiarism-free
+6. End with a thoughtful conclusion
+
+Format the article with proper HTML paragraphs using <p> tags and headings using <h2> and <h3> tags.
+        `;
+        
+        console.log(`Sending Gemini prompt for "${title}" in category "${category}"`);
         
         const response = await fetch(
-          "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, 
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, 
           {
             method: "POST",
             headers: {
@@ -76,21 +115,87 @@ serve(async (req) => {
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Gemini API Error:', errorText);
+          console.error(`Gemini API Error for "${title}": ${response.status} - ${errorText}`);
+          
+          if (response.status === 429) {
+            // Rate limit hit - wait and retry once with simpler prompt
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const fallbackPrompt = `Write a brief article about: ${title}. Keep it concise but informative.`;
+            
+            console.log(`Retrying with simplified prompt for "${title}"`);
+            
+            const retryResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, 
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: fallbackPrompt }] }],
+                  generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 1024
+                  }
+                })
+              }
+            );
+            
+            if (retryResponse.ok) {
+              const fallbackResult = await retryResponse.json();
+              const fallbackContent = fallbackResult?.candidates?.[0]?.content?.parts?.[0]?.text || description;
+              
+              return {
+                enhancedContent: fallbackContent,
+                enhancedSummary: title
+              };
+            }
+          }
+          
           throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
         }
         
         const result = await response.json();
         const generatedContent = result?.candidates?.[0]?.content?.parts?.[0]?.text || description;
         
+        // Generate a more engaging summary
+        const summaryPrompt = `Write an engaging summary (maximum 2 sentences) for this article title: "${title}"`;
+        
+        const summaryResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, 
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: summaryPrompt }] }],
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 256
+              }
+            })
+          }
+        );
+        
+        let enhancedSummary = title;
+        
+        if (summaryResponse.ok) {
+          const summaryResult = await summaryResponse.json();
+          enhancedSummary = summaryResult?.candidates?.[0]?.content?.parts?.[0]?.text || title;
+        }
+        
         return {
           enhancedContent: generatedContent,
-          enhancedSummary: title
+          enhancedSummary: enhancedSummary
         };
       } catch (error) {
-        console.error('Error enhancing content with Gemini:', error);
+        console.error(`Error enhancing content with Gemini for "${title}":`, error);
+        
+        // Fallback to original content
         return {
-          enhancedContent: description || 'No content available.',
+          enhancedContent: `<p>${description || 'No content available.'}</p>`,
           enhancedSummary: title || 'No summary available.'
         };
       }
@@ -103,19 +208,107 @@ serve(async (req) => {
     const response = await fetch(gnewsUrl);
     if (!response.ok) {
       const errorText = await response.text();
+      
+      // Update source_fetches with error
+      try {
+        await supabase
+          .from('source_fetches')
+          .update({
+            status: 'error',
+            response_data: { error: errorText },
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', fetchId);
+      } catch (e) {
+        console.error('Failed to update source_fetches with error:', e);
+      }
+      
       throw new Error(`GNews API error: ${response.status} - ${errorText}`);
     }
     
     const articlesData = await response.json();
     console.log(`Received ${articlesData.articles?.length || 0} articles from GNews`);
     
+    // Update source_fetches with success
+    try {
+      const { data: fetchLog } = await supabase
+        .from('source_fetches')
+        .update({
+          status: 'fetched',
+          response_data: { count: articlesData.articles?.length || 0 },
+          completed_at: new Date().toISOString()
+        })
+        .eq('source', 'gnews')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .select()
+        .single();
+      
+      if (fetchLog) {
+        fetchId = fetchLog.id;
+      }
+    } catch (e) {
+      console.error('Failed to update source_fetches with success:', e);
+    }
+    
     // Process and enhance articles
     const processedArticles = [];
     for (const article of articlesData.articles) {
+      // Generate slug from title
+      const slug = article.title
+        .toLowerCase()
+        .replace(/[^\w\s]/gi, '')
+        .replace(/\s+/g, '-')
+        .substring(0, 60) + '-' + Math.floor(Math.random() * 1000);
+      
+      // Extract tags from content
+      const extractTags = (title, description, category) => {
+        const combinedText = `${title} ${description}`.toLowerCase();
+        const categoryTags = {
+          'startups': ['startup', 'innovation', 'entrepreneur', 'venture', 'business'],
+          'ai': ['ai', 'artificial intelligence', 'machine learning', 'deep learning', 'neural network'],
+          'funding': ['funding', 'investment', 'vc', 'venture capital', 'series'],
+          'fintech': ['fintech', 'financial', 'banking', 'payment', 'blockchain'],
+          'blockchain': ['blockchain', 'crypto', 'bitcoin', 'ethereum', 'web3'],
+          'climate-tech': ['climate', 'sustainability', 'green', 'renewable', 'clean energy'],
+          'case-studies': ['case study', 'success story', 'business case', 'analysis']
+        };
+        
+        // Start with category-specific tags
+        const possibleTags = categoryTags[category] || categoryTags['startups'];
+        const tags = [];
+        
+        // Add tags that actually appear in the text
+        possibleTags.forEach(tag => {
+          if (combinedText.includes(tag)) {
+            tags.push(tag);
+          }
+        });
+        
+        // Add the category as a tag if it's not already included
+        if (!tags.includes(category)) {
+          tags.push(category);
+        }
+        
+        // Add 'tech' as a general tag if we have fewer than 3 tags
+        if (tags.length < 3 && !tags.includes('tech')) {
+          tags.push('tech');
+        }
+        
+        return tags;
+      };
+      
       const { enhancedContent, enhancedSummary } = await enhanceWithGemini(
         article.title, 
-        article.description
+        article.description,
+        targetCategory || 'general'
       );
+      
+      const tags = extractTags(article.title, article.description, targetCategory);
+      
+      // Calculate estimated reading time (rough estimate: 200 words per minute)
+      const wordCount = enhancedContent?.split(/\s+/)?.length || 0;
+      const readingTime = Math.max(1, Math.ceil(wordCount / 200));
       
       const articleRecord = {
         title: article.title,
@@ -125,10 +318,33 @@ serve(async (req) => {
         source_url: article.url,
         category: targetCategory || 'general',
         visible: true,
-        tags: ['tech', 'startup']
+        tags: tags,
+        reading_time: readingTime,
+        author: 'MoveSmart AI'
       };
       
       processedArticles.push(articleRecord);
+    }
+    
+    if (processedArticles.length === 0) {
+      const errorMsg = 'No articles were processed successfully';
+      console.error(errorMsg);
+      
+      // Update source_fetches with error
+      try {
+        await supabase
+          .from('source_fetches')
+          .update({
+            status: 'error',
+            response_data: { error: errorMsg },
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', fetchId);
+      } catch (e) {
+        console.error('Failed to update source_fetches with error:', e);
+      }
+      
+      throw new Error(errorMsg);
     }
     
     // Insert articles into Supabase
@@ -139,10 +355,39 @@ serve(async (req) => {
     
     if (error) {
       console.error('Error inserting articles:', error);
+      
+      // Update source_fetches with error
+      try {
+        await supabase
+          .from('source_fetches')
+          .update({
+            status: 'error',
+            response_data: { error: error.message },
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', fetchId);
+      } catch (e) {
+        console.error('Failed to update source_fetches with error:', e);
+      }
+      
       throw error;
     }
     
     console.log(`Successfully inserted ${data.length} articles`);
+    
+    // Update source_fetches with completion
+    try {
+      await supabase
+        .from('source_fetches')
+        .update({
+          status: 'completed',
+          articles_generated: data.length,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', fetchId);
+    } catch (e) {
+      console.error('Failed to update source_fetches with completion:', e);
+    }
     
     return new Response(
       JSON.stringify({
@@ -157,6 +402,28 @@ serve(async (req) => {
   } catch (error) {
     console.error('=== ARTICLE GENERATION FAILED ===');
     console.error('Error:', error);
+    
+    // Create a logs entry for the error
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') || 'https://uagckghgdqmioejsopzv.supabase.co',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      );
+      
+      await supabase
+        .from('logs')
+        .insert({
+          level: 'error',
+          category: 'article_generation',
+          message: error.message,
+          details: {
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+          }
+        });
+    } catch (logError) {
+      console.error('Failed to log error to database:', logError);
+    }
     
     return new Response(
       JSON.stringify({

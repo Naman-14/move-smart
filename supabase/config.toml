@@ -37,4 +37,5 @@ verify_jwt = false
 
 [functions.schedule-article-generation]
 verify_jwt = false
-schedule = "0 */3 * * *"
+schedule = "0 * * * *"
+

@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/use-toast';
 // Import the Supabase URL and key from the client file
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 
-// Function to generate content with Gemini (client-side fallback)
+// Function to generate content with Gemini
 async function generateWithGemini(promptText: string) {
   const apiKey = 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM';
   
@@ -22,7 +22,8 @@ async function generateWithGemini(promptText: string) {
           generationConfig: {
             temperature: 0.7,
             topP: 0.8,
-            topK: 40
+            topK: 40,
+            maxOutputTokens: 1024
           }
         })
       }
@@ -58,28 +59,6 @@ export const triggerArticleGeneration = async () => {
     
     // Detailed pre-invocation logging
     console.log('About to invoke fetch-and-generate-articles edge function...');
-    
-    // Check if the edge function is available
-    try {
-      console.log('Checking edge function availability...');
-      const healthResponse = await fetch(`${SUPABASE_URL}/functions/v1/fetch-and-generate-articles/health`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      console.log('Health check status:', healthResponse.status);
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json();
-        console.log('Health check response:', healthData);
-      } else {
-        console.warn('Health check failed:', await healthResponse.text());
-      }
-    } catch (healthError) {
-      console.warn('Health check failed with error:', healthError);
-    }
     
     // Generate content for each category to ensure all sections are populated
     const categories = [
@@ -170,3 +149,42 @@ export const triggerArticleGeneration = async () => {
     throw error;
   }
 };
+
+// Function to generate a single article from a news headline
+export async function generateArticleFromNews(newsTitle: string, category: string = 'general') {
+  const GEMINI_API_KEY = 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM';
+  
+  try {
+    const prompt = `Write a detailed, professional, original article based on this headline: "${newsTitle}". 
+Focus on the ${category} industry. Ensure the article is engaging, informative, and plagiarism-free.
+Structure it with a clear introduction, body, and conclusion.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.8,
+            maxOutputTokens: 1024
+          }
+        }),
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Gemini API Error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data?.candidates?.[0]?.content?.parts?[0]?.text || null;
+  } catch (err) {
+    console.error("Gemini Error:", err);
+    return null;
+  }
+}

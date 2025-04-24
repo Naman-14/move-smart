@@ -29,12 +29,21 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    console.log('Environment check:');
-    console.log('- SUPABASE_URL present:', !!SUPABASE_URL);
-    console.log('- SUPABASE_SERVICE_ROLE_KEY present:', !!SUPABASE_SERVICE_ROLE_KEY);
+    // Log function execution start
+    const { data: executionLog, error: logError } = await supabase
+      .from('cron_run_logs')
+      .insert({
+        job_name: 'article-generation',
+        status: 'started'
+      })
+      .select()
+      .single();
+      
+    if (logError) {
+      console.error('Error logging cron job start:', logError);
+    }
     
-    // Verify the supabase client is initialized properly
-    console.log('- Supabase client initialized:', !!supabase);
+    const executionLogId = executionLog?.id;
     
     // Define topic categories to ensure we generate content for all pages
     const categories = [
@@ -47,11 +56,36 @@ serve(async (req) => {
       'climate-tech'
     ];
     
+    // Check for recent failures
+    const { data: recentFailures } = await supabase
+      .from('cron_run_logs')
+      .select('*')
+      .eq('status', 'error')
+      .order('created_at', { ascending: false })
+      .limit(3);
+      
+    const hasRecentFailures = recentFailures && recentFailures.length >= 3;
+    
+    // Determine if we're in recovery mode (after multiple failures)
+    const recoveryMode = hasRecentFailures;
+    if (recoveryMode) {
+      console.log('Multiple recent failures detected, entering recovery mode with reduced load');
+    }
+    
     let successCount = 0;
     let errorCount = 0;
     
+    // Utility function to add delay between requests
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    
     // Process multiple categories to ensure good content coverage
     for (const category of categories) {
+      // In recovery mode, only process a few key categories
+      if (recoveryMode && !['startups', 'ai', 'funding'].includes(category)) {
+        console.log(`Skipping ${category} in recovery mode to reduce API load`);
+        continue;
+      }
+      
       // Select appropriate query based on category
       let query = '';
       
@@ -83,6 +117,10 @@ serve(async (req) => {
       
       console.log(`Generating content for category ${category} with query: ${query}`);
       
+      // Set the number of articles to generate per category
+      // Use fewer in recovery mode
+      const articlesNeeded = recoveryMode ? 1 : 3;
+      
       try {
         // Invoke the fetch-and-generate-articles function directly
         const response = await fetch(
@@ -99,7 +137,7 @@ serve(async (req) => {
               debug: true,
               query: query,
               targetCategory: category,
-              articlesNeeded: 3, // Generate 3 articles per category
+              articlesNeeded: articlesNeeded,
               useAI: true
             }),
           }
@@ -111,6 +149,51 @@ serve(async (req) => {
           console.error(`Failed to generate articles for ${category}. Status: ${response.status}`);
           console.error('Error response:', errorText);
           errorCount++;
+          
+          // Log error to database
+          await supabase.from('logs').insert({
+            level: 'error',
+            category: 'article_generation',
+            message: `Failed to generate articles for ${category}`,
+            details: {
+              status: response.status,
+              error: errorText,
+              category
+            }
+          });
+          
+          // If we're not in recovery mode and hit a significant error, try a simpler approach
+          if (!recoveryMode && response.status !== 404) {
+            console.log(`Attempting recovery for ${category} with simplified parameters...`);
+            
+            // Simple retry with more basic parameters
+            const retryResponse = await fetch(
+              `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  manualRun: false,
+                  scheduled: true,
+                  debug: true,
+                  query: category, // Simplified query
+                  targetCategory: category,
+                  articlesNeeded: 1, // Reduced article count
+                  useAI: true
+                }),
+              }
+            );
+            
+            if (retryResponse.ok) {
+              const retryResult = await retryResponse.json();
+              console.log(`Recovery successful for ${category}: generated ${retryResult.articles?.length || 0} articles`);
+              successCount += retryResult.articles?.length || 0;
+            }
+          }
+          
         } else {
           const result = await response.json();
           console.log(`Successfully generated ${category} articles:`, 
@@ -123,12 +206,36 @@ serve(async (req) => {
       } catch (categoryError) {
         console.error(`Error processing category ${category}:`, categoryError);
         errorCount++;
+        
+        // Log error to database
+        await supabase.from('logs').insert({
+          level: 'error',
+          category: 'article_generation',
+          message: `Exception processing category ${category}`,
+          details: {
+            error: categoryError.message,
+            stack: categoryError.stack,
+            category
+          }
+        });
       }
       
       // Delay between requests to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await delay(recoveryMode ? 3000 : 1000);
     }
 
+    // Update execution log with results
+    if (executionLogId) {
+      await supabase
+        .from('cron_run_logs')
+        .update({
+          status: errorCount > 0 ? (successCount > 0 ? 'partial_success' : 'error') : 'completed',
+          completed_at: new Date().toISOString(),
+          error_message: errorCount > 0 ? `Encountered ${errorCount} errors` : null
+        })
+        .eq('id', executionLogId);
+    }
+    
     console.log('=== SCHEDULED ARTICLE GENERATION COMPLETE ===');
     console.log(`Total articles generated: ${successCount}`);
     console.log(`Total errors: ${errorCount}`);
@@ -139,7 +246,8 @@ serve(async (req) => {
         message: 'Successfully scheduled article generation',
         timestamp: new Date().toISOString(),
         articlesGenerated: successCount,
-        errorsEncountered: errorCount
+        errorsEncountered: errorCount,
+        recoveryMode
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -148,6 +256,48 @@ serve(async (req) => {
   } catch (error) {
     console.error('=== SCHEDULED ARTICLE GENERATION FAILED ===');
     console.error('Error in schedule-article-generation:', error);
+    
+    // Try to create a logs entry for the error
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') || 'https://uagckghgdqmioejsopzv.supabase.co',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      );
+      
+      await supabase
+        .from('logs')
+        .insert({
+          level: 'error',
+          category: 'cron_job',
+          message: 'Scheduled article generation failed',
+          details: {
+            error: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+      // Also update the execution log if possible
+      const { data: latestRun } = await supabase
+        .from('cron_run_logs')
+        .select('*')
+        .eq('status', 'started')
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (latestRun && latestRun.length > 0) {
+        await supabase
+          .from('cron_run_logs')
+          .update({
+            status: 'error',
+            completed_at: new Date().toISOString(),
+            error_message: error.message
+          })
+          .eq('id', latestRun[0].id);
+      }
+    } catch (logError) {
+      console.error('Failed to log error to database:', logError);
+    }
     
     return new Response(
       JSON.stringify({
