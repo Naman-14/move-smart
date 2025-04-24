@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 // Import the Supabase URL and key from the client file
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
@@ -58,9 +59,9 @@ export const triggerArticleGeneration = async () => {
     // Detailed pre-invocation logging
     console.log('About to invoke fetch-and-generate-articles edge function...');
     
-    // First, check if we can simply fetch from the edge function endpoint (fallback)
+    // Check if the edge function is available
     try {
-      console.log('Attempting direct fetch to check edge function availability...');
+      console.log('Checking edge function availability...');
       const healthResponse = await fetch(`${SUPABASE_URL}/functions/v1/fetch-and-generate-articles/health`, {
         method: 'GET',
         headers: {
@@ -73,11 +74,6 @@ export const triggerArticleGeneration = async () => {
       if (healthResponse.ok) {
         const healthData = await healthResponse.json();
         console.log('Health check response:', healthData);
-        
-        // Specific check for the source_fetches table
-        if (healthData.source_fetches_table === false) {
-          console.warn('The source_fetches table does not exist or is not accessible!');
-        }
       } else {
         console.warn('Health check failed:', await healthResponse.text());
       }
@@ -91,6 +87,7 @@ export const triggerArticleGeneration = async () => {
     ];
     
     let successCount = 0;
+    let errorCount = 0;
     
     // Process each category with specific sources to generate diverse content
     for (const category of categories) {
@@ -134,16 +131,17 @@ export const triggerArticleGeneration = async () => {
             clientTimestamp: new Date().toISOString(),
             query: query,
             targetCategory: category,
-            articlesNeeded: 5, // Request 5 articles per category for good content volume
+            articlesNeeded: 3, // Request 3 articles per category for good content volume
             useAI: true // Enable AI content enhancement
           },
         });
         
         if (error) {
           console.error(`Error generating ${category} articles:`, error);
+          errorCount++;
         } else if (data) {
           console.log(`Successfully generated ${category} articles:`, 
-            data.articles?.map(a => ({id: a.id, title: a.title})) || 'No articles data');
+            data.articles?.length || 'No articles data');
           successCount += (data.articles?.length || 0);
         }
         
@@ -151,11 +149,16 @@ export const triggerArticleGeneration = async () => {
         await new Promise(resolve => setTimeout(resolve, 800));
       } catch (categoryError) {
         console.error(`Error processing category ${category}:`, categoryError);
+        errorCount++;
       }
     }
     
-    console.log(`=== ARTICLE GENERATION COMPLETE: Generated ${successCount} new articles ===`);
-    return { success: true, articlesGenerated: successCount };
+    console.log(`=== ARTICLE GENERATION COMPLETE: Generated ${successCount} new articles, ${errorCount} errors ===`);
+    return { 
+      success: true, 
+      articlesGenerated: successCount,
+      errorsEncountered: errorCount
+    };
   } catch (error) {
     // Enhanced error logging with stack trace
     console.error('=== ARTICLE GENERATION FAILED ===');

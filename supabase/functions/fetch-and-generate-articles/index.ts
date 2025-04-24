@@ -43,148 +43,163 @@ serve(async (req) => {
     console.log(`Function parameters: manualRun=${manualRun}, debug=${debug}, query=${query}, articlesNeeded=${articlesNeeded}, targetCategory=${targetCategory}, useAI=${useAI}`);
     
     // Creating a Supabase client
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'https://uagckghgdqmioejsopzv.supabase.co';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const GNEWS_API_KEY = Deno.env.get('GNEWS_API_KEY') || '90e92cf05deecdbbb043dcc040b97c5e'; // Use provided key
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM'; // Use provided Gemini key
+    const GNEWS_API_KEY = Deno.env.get('GNEWS_API_KEY') || '90e92cf05deecdbbb043dcc040b97c5e';
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM';
     
     // Check for presence of required env variables
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Required Supabase environment variables are not set');
+    if (!SUPABASE_URL) {
+      throw new Error('SUPABASE_URL is not set');
+    }
+
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
     }
 
     if (!GNEWS_API_KEY) {
-      throw new Error('GNews API key is not set');
+      throw new Error('GNEWS_API_KEY is not set');
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Initialize Supabase client with proper error handling
+    console.log(`Initializing Supabase client with URL: ${SUPABASE_URL}`);
+    let supabase;
+    
+    try {
+      supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      if (!supabase) throw new Error('Failed to create Supabase client');
+      console.log("Supabase client initialized successfully");
+    } catch (supabaseError) {
+      console.error("Error initializing Supabase client:", supabaseError);
+      throw new Error(`Failed to initialize Supabase client: ${supabaseError.message}`);
+    }
     
     // Special handling for /health path
     const url = new URL(req.url);
     if (url.pathname.endsWith('/health')) {
       console.log("Health check requested");
       
-      // Check if source_fetches table exists
-      const { data: tablesData, error: tablesError } = await supabase
-        .from('pg_tables')
-        .select('tablename')
-        .eq('schemaname', 'public')
-        .eq('tablename', 'source_fetches');
-      
-      const source_fetches_table_exists = !tablesError && tablesData && tablesData.length > 0;
-      
-      // Check article table count
-      const { count: articleCount, error: countError } = await supabase
-        .from('articles')
-        .select('*', { count: 'exact', head: true });
-      
-      return new Response(
-        JSON.stringify({
-          status: 'ok',
-          timestamp: new Date().toISOString(),
-          environment: {
-            has_supabase_url: !!SUPABASE_URL,
-            has_service_role_key: !!SUPABASE_SERVICE_ROLE_KEY,
-            has_gnews_api_key: !!GNEWS_API_KEY,
-            has_gemini_api_key: !!GEMINI_API_KEY,
-          },
-          supabase_connection: !tablesError ? 'working' : 'error',
-          source_fetches_table: source_fetches_table_exists,
-          articles_table: {
-            count: articleCount,
-            error: countError ? countError.message : null
+      try {
+        // Verify Supabase connectivity by making a simple query
+        const { data: tablesList, error: tablesError } = await supabase
+          .from('pg_tables')
+          .select('tablename')
+          .eq('schemaname', 'public')
+          .limit(5);
+        
+        // Check article table count
+        const { count: articleCount, error: countError } = await supabase
+          .from('articles')
+          .select('*', { count: 'exact', head: true });
+          
+        // Check source_fetches table
+        const { data: sourceFetchesData, error: sourceFetchesError } = await supabase
+          .from('source_fetches')
+          .select('count(*)', { count: 'exact', head: true });
+        
+        return new Response(
+          JSON.stringify({
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            environment: {
+              has_supabase_url: !!SUPABASE_URL,
+              has_service_role_key: !!SUPABASE_SERVICE_ROLE_KEY,
+              has_gnews_api_key: !!GNEWS_API_KEY,
+              has_gemini_api_key: !!GEMINI_API_KEY,
+            },
+            supabase_connection: !tablesError ? 'working' : 'error',
+            tables: tablesList || [],
+            database_status: {
+              articles: {
+                count: articleCount,
+                error: countError ? countError.message : null
+              },
+              source_fetches: {
+                exists: !sourceFetchesError,
+                error: sourceFetchesError ? sourceFetchesError.message : null
+              }
+            }
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           }
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+        );
+      } catch (healthError) {
+        console.error("Error in health check:", healthError);
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            message: 'Health check failed',
+            error: healthError.message
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          }
+        );
+      }
     }
     
     // Log the source fetch
     try {
-      // Check if source_fetches table exists first
-      const { data: tableExists, error: tableCheckError } = await supabase
-        .from('pg_tables')
-        .select('tablename')
-        .eq('schemaname', 'public')
-        .eq('tablename', 'source_fetches');
+      // Create source_fetches entry for this run
+      const { data: sourceFetch, error: sourceFetchError } = await supabase
+        .from('source_fetches')
+        .insert({
+          source: 'gnews',
+          query: query,
+          country: 'us',
+          status: 'pending'
+        })
+        .select('id')
+        .single();
       
-      if (tableExists && tableExists.length > 0) {
-        const { data, error } = await supabase
-          .from('source_fetches')
-          .insert({
-            source: 'gnews',
-            query: query,
-            manual_run: manualRun,
-            parameters: { query, debug, manualRun, targetCategory, useAI }
-          })
-          .select();
-        
-        if (error) console.error("Error logging source fetch:", error);
-        else console.log("Source fetch logged:", data);
+      if (sourceFetchError) {
+        console.error("Error logging source fetch:", sourceFetchError);
       } else {
-        console.log("source_fetches table doesn't exist, creating it");
-        
-        // Create the source_fetches table if it doesn't exist
-        const { error: createTableError } = await supabase.rpc(
-          'exec',
-          {
-            sql: `
-              CREATE TABLE IF NOT EXISTS public.source_fetches (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-                source TEXT NOT NULL,
-                query TEXT,
-                manual_run BOOLEAN DEFAULT false,
-                parameters JSONB,
-                results_count INTEGER,
-                status TEXT DEFAULT 'pending'
-              );
-            `
-          }
-        );
-        
-        if (createTableError) {
-          console.error("Error creating source_fetches table:", createTableError);
-        } else {
-          console.log("Created source_fetches table successfully");
-          
-          // Try logging the fetch again
-          const { error } = await supabase
-            .from('source_fetches')
-            .insert({
-              source: 'gnews',
-              query: query,
-              manual_run: manualRun,
-              parameters: { query, debug, manualRun, targetCategory, useAI }
-            });
-          
-          if (error) console.error("Error logging source fetch after table creation:", error);
-          else console.log("Source fetch logged after table creation");
-        }
+        console.log("Source fetch logged with ID:", sourceFetch.id);
       }
     } catch (e) {
       console.error("Error handling source fetch logging:", e);
       // Continue with the function even if logging fails
     }
     
-    // Fetch articles from GNews API
+    // Fetch articles from GNews API with better error handling
     console.log(`Fetching articles from GNews API with query: ${query}`);
     const gnewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=us&max=${articlesNeeded}&apikey=${GNEWS_API_KEY}`;
     console.log(`GNews API URL: ${gnewsUrl.replace(GNEWS_API_KEY, 'API_KEY_HIDDEN')}`);
     
-    const response = await fetch(gnewsUrl);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`GNews API Error (${response.status}): ${errorText}`);
-      throw new Error(`GNews API error: ${response.status} ${response.statusText}`);
+    let response;
+    try {
+      response = await fetch(gnewsUrl);
+      
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`GNews API Error (${response.status}): ${errorBody}`);
+        throw new Error(`GNews API error: ${response.status} ${response.statusText} - ${errorBody}`);
+      }
+    } catch (fetchError) {
+      console.error("Network error fetching from GNews:", fetchError);
+      throw new Error(`Network error fetching from GNews: ${fetchError.message}`);
     }
     
-    const articlesData = await response.json();
-    console.log(`Received ${articlesData.articles?.length || 0} articles from GNews`);
+    // Parse the GNews response
+    let articlesData;
+    try {
+      articlesData = await response.json();
+      console.log(`Received ${articlesData.articles?.length || 0} articles from GNews`);
+      
+      // Log the raw data structure for debugging
+      if (debug) {
+        console.log("Example article structure:", articlesData.articles?.[0] ? 
+          JSON.stringify(articlesData.articles[0]) : "No articles received");
+      }
+    } catch (parseError) {
+      console.error("Error parsing GNews response:", parseError);
+      throw new Error(`Error parsing GNews response: ${parseError.message}`);
+    }
     
+    // Validate the response
     if (!articlesData.articles || articlesData.articles.length === 0) {
       return new Response(
         JSON.stringify({ 
@@ -197,6 +212,24 @@ serve(async (req) => {
           status: 200
         }
       );
+    }
+    
+    // Save the raw fetched data for backup/debugging
+    try {
+      await supabase
+        .from('source_fetches')
+        .update({ 
+          articles_fetched: articlesData.articles.length,
+          raw_data: articlesData,
+          status: 'fetched'
+        })
+        .eq('source', 'gnews')
+        .eq('query', query)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    } catch (updateError) {
+      console.error("Error saving raw data to source_fetches:", updateError);
+      // Continue processing anyway
     }
     
     // Define available categories
@@ -249,54 +282,88 @@ serve(async (req) => {
         `;
         
         // Call Gemini API for content generation
-        const contentResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: contentPrompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              topP: 0.8,
-              topK: 40
+        let contentResponse;
+        try {
+          contentResponse = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, 
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: contentPrompt }] }],
+                generationConfig: {
+                  temperature: 0.7,
+                  topP: 0.8,
+                  topK: 40
+                }
+              })
             }
-          })
-        });
-        
-        if (!contentResponse.ok) {
-          const errorText = await contentResponse.text();
-          console.error("Gemini API Error for content:", errorText);
-          throw new Error(`Gemini API error: ${contentResponse.status}`);
+          );
+          
+          if (!contentResponse.ok) {
+            const contentErrorText = await contentResponse.text();
+            console.error("Gemini API Error for content:", contentErrorText);
+            throw new Error(`Gemini API error for content: ${contentResponse.status} - ${contentErrorText}`);
+          }
+        } catch (contentFetchError) {
+          console.error("Network error calling Gemini API for content:", contentFetchError);
+          throw new Error(`Network error calling Gemini API for content: ${contentFetchError.message}`);
         }
         
-        const contentResult = await contentResponse.json();
+        // Parse content response
+        let contentResult;
+        try {
+          contentResult = await contentResponse.json();
+        } catch (contentParseError) {
+          console.error("Error parsing Gemini content response:", contentParseError);
+          throw new Error(`Error parsing Gemini content response: ${contentParseError.message}`);
+        }
+        
         const enhancedContent = contentResult?.candidates?.[0]?.content?.parts?.[0]?.text || 
-                               "No content was generated. Please try again later.";
+                              "No content was generated. Please try again later.";
         
         // Call Gemini API for summary generation
-        const summaryResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: summaryPrompt }] }],
-            generationConfig: {
-              temperature: 0.4,
-              topP: 0.95,
-              maxOutputTokens: 100
+        let summaryResponse;
+        try {
+          summaryResponse = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY, 
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: summaryPrompt }] }],
+                generationConfig: {
+                  temperature: 0.4,
+                  topP: 0.95,
+                  maxOutputTokens: 100
+                }
+              })
             }
-          })
-        });
-        
-        if (!summaryResponse.ok) {
-          const errorText = await summaryResponse.text();
-          console.error("Gemini API Error for summary:", errorText);
-          throw new Error(`Gemini API error: ${summaryResponse.status}`);
+          );
+          
+          if (!summaryResponse.ok) {
+            const summaryErrorText = await summaryResponse.text();
+            console.error("Gemini API Error for summary:", summaryErrorText);
+            throw new Error(`Gemini API error for summary: ${summaryResponse.status} - ${summaryErrorText}`);
+          }
+        } catch (summaryFetchError) {
+          console.error("Network error calling Gemini API for summary:", summaryFetchError);
+          throw new Error(`Network error calling Gemini API for summary: ${summaryFetchError.message}`);
         }
         
-        const summaryResult = await summaryResponse.json();
+        // Parse summary response
+        let summaryResult;
+        try {
+          summaryResult = await summaryResponse.json();
+        } catch (summaryParseError) {
+          console.error("Error parsing Gemini summary response:", summaryParseError);
+          throw new Error(`Error parsing Gemini summary response: ${summaryParseError.message}`);
+        }
+        
         const enhancedSummary = summaryResult?.candidates?.[0]?.content?.parts?.[0]?.text || 
                                "No summary was generated. Please try again later.";
         
@@ -313,6 +380,7 @@ serve(async (req) => {
         };
       } catch (error) {
         console.error("Error enhancing content with Gemini:", error);
+        // Return basic content as fallback
         return { 
           enhancedContent: content ? `<p>${description || ''}</p><p>${content || ''}</p>` : `<p>${description || 'No content available.'}</p>`,
           enhancedSummary: description || 'No summary available.'
@@ -320,19 +388,21 @@ serve(async (req) => {
       }
     }
     
-    // Transform and process articles
+    // Transform and process articles with better error handling
     const processedArticles = [];
+    let successCount = 0;
+    let errorCount = 0;
     
     for (const article of articlesData.articles) {
       try {
-        // Generate a short slug from the title
+        console.log(`Processing article: "${article.title.substring(0, 30)}..."`);
+        
+        // Generate a slug from the title with a unique identifier
         const slug = article.title
           .toLowerCase()
           .replace(/[^\w\s]/g, '')
           .replace(/\s+/g, '-')
           .substring(0, 50) + '-' + uuidv4().substring(0, 8);
-        
-        console.log(`Processing article: "${article.title.substring(0, 30)}..."`);
         
         // Clean content if present
         const cleanContent = article.content 
@@ -381,7 +451,7 @@ serve(async (req) => {
         const wordCount = enhancedContent.split(/\s+/).length;
         const readingTime = Math.max(1, Math.round(wordCount / 200)); // Avg reading speed 200wpm
         
-        // Generate random author names
+        // Generate random author names for diversity
         const authorNames = [
           "Emma Johnson", "Michael Chen", "Sarah Patel", "David Okonkwo", 
           "Aisha Rahman", "Tomas Rodriguez", "Zoe Williams", "Ryan Kim", 
@@ -389,7 +459,8 @@ serve(async (req) => {
         ];
         const author = authorNames[Math.floor(Math.random() * authorNames.length)];
         
-        processedArticles.push({
+        // Prepare the article for insertion
+        const articleRecord = {
           title: article.title,
           slug,
           summary: enhancedSummary,
@@ -399,19 +470,21 @@ serve(async (req) => {
           category,
           visible: true,
           source_url: article.url,
-          source_name: article.source?.name || 'News Source',
-          publication_date: article.publishedAt,
-          reading_time: readingTime,
-          author: author
-        });
+          author,
+          reading_time: readingTime
+        };
+        
+        processedArticles.push(articleRecord);
+        successCount++;
         
         console.log(`Processed article: "${article.title.substring(0, 30)}..." with category ${category}`);
       } catch (articleError) {
         console.error(`Error processing article: ${articleError}`);
+        errorCount++;
       }
     }
     
-    console.log(`Processed ${processedArticles.length} articles for insertion`);
+    console.log(`Processed ${processedArticles.length} articles for insertion (${successCount} success, ${errorCount} errors)`);
     
     if (processedArticles.length === 0) {
       return new Response(
@@ -428,45 +501,59 @@ serve(async (req) => {
     }
     
     // Insert articles into database
-    const { data: insertedData, error: insertError } = await supabase
-      .from('articles')
-      .insert(processedArticles)
-      .select();
-    
-    if (insertError) {
-      console.error("Error inserting articles:", insertError);
-      throw insertError;
+    let insertedData;
+    try {
+      const { data, error: insertError } = await supabase
+        .from('articles')
+        .insert(processedArticles)
+        .select();
+      
+      if (insertError) {
+        console.error("Error inserting articles:", insertError);
+        throw insertError;
+      }
+      
+      insertedData = data;
+      console.log(`Successfully inserted ${insertedData.length} articles`);
+    } catch (dbError) {
+      console.error("Database error inserting articles:", dbError);
+      // Try inserting one by one to find problematic records
+      insertedData = [];
+      for (const article of processedArticles) {
+        try {
+          const { data, error } = await supabase
+            .from('articles')
+            .insert(article)
+            .select('id, title')
+            .single();
+          
+          if (error) {
+            console.error(`Error inserting article "${article.title}":`, error);
+          } else {
+            insertedData.push(data);
+            console.log(`Successfully inserted article: ${data.title} (${data.id})`);
+          }
+        } catch (singleInsertError) {
+          console.error(`Exception inserting article "${article.title}":`, singleInsertError);
+        }
+      }
     }
     
-    console.log(`Successfully inserted ${insertedData.length} articles`);
-    
-    // Update the source fetch record with results if available
+    // Update the source fetch record with results
     try {
-      const { data: tableExists } = await supabase
-        .from('pg_tables')
-        .select('tablename')
-        .eq('schemaname', 'public')
-        .eq('tablename', 'source_fetches');
+      const { error: updateError } = await supabase
+        .from('source_fetches')
+        .update({
+          articles_processed: insertedData.length,
+          status: 'success'
+        })
+        .eq('source', 'gnews')
+        .eq('query', query)
+        .order('created_at', { ascending: false })
+        .limit(1);
       
-      if (tableExists && tableExists.length > 0) {
-        const { data: sourceFetches } = await supabase
-          .from('source_fetches')
-          .select('id')
-          .eq('query', query)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (sourceFetches && sourceFetches.length > 0) {
-          const { error: updateError } = await supabase
-            .from('source_fetches')
-            .update({
-              results_count: insertedData.length,
-              status: 'success'
-            })
-            .eq('id', sourceFetches[0].id);
-          
-          if (updateError) console.error("Error updating source fetch:", updateError);
-        }
+      if (updateError) {
+        console.error("Error updating source fetch:", updateError);
       }
     } catch (e) {
       console.error("Error updating source fetch record:", e);
@@ -476,8 +563,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Successfully fetched, enhanced, and inserted ${insertedData.length} articles`,
-        articles: insertedData.map((a: any) => ({ id: a.id, title: a.title, category: a.category }))
+        message: `Successfully fetched, enhanced, and inserted ${insertedData?.length || 0} articles`,
+        articles: insertedData?.map((a: any) => ({ id: a.id, title: a.title, category: a.category })) || []
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

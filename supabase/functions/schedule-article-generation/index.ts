@@ -7,15 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || 'AIzaSyDfPJvFdqt8nQvPnCXHqvQ4wyMynV4FkfM';
-
-const supabase = createClient(
-  SUPABASE_URL!,
-  SUPABASE_SERVICE_ROLE_KEY!,
-);
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -26,43 +17,24 @@ serve(async (req) => {
 
   try {
     console.log('=== SCHEDULED ARTICLE GENERATION START ===');
+    
+    // Get environment variables
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'https://uagckghgdqmioejsopzv.supabase.co';
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+    }
+    
+    // Initialize Supabase client
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    
     console.log('Environment check:');
     console.log('- SUPABASE_URL present:', !!SUPABASE_URL);
     console.log('- SUPABASE_SERVICE_ROLE_KEY present:', !!SUPABASE_SERVICE_ROLE_KEY);
-    console.log('- GEMINI_API_KEY present:', !!GEMINI_API_KEY);
     
     // Verify the supabase client is initialized properly
     console.log('- Supabase client initialized:', !!supabase);
-    
-    // Check health of the fetch-and-generate-articles function first
-    console.log('Checking health of fetch-and-generate-articles function...');
-    try {
-      const healthUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles/health`;
-      console.log(`Health check URL: ${healthUrl}`);
-      
-      const healthResponse = await fetch(
-        healthUrl,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-      
-      console.log(`Health check status: ${healthResponse.status}`);
-      
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json();
-        console.log('Health check passed:', healthData);
-      } else {
-        const errorText = await healthResponse.text();
-        console.error(`Health check failed: ${errorText}`);
-      }
-    } catch (healthError) {
-      console.error('Error performing health check:', healthError);
-    }
     
     // Define topic categories to ensure we generate content for all pages
     const categories = [
@@ -76,6 +48,7 @@ serve(async (req) => {
     ];
     
     let successCount = 0;
+    let errorCount = 0;
     
     // Process multiple categories to ensure good content coverage
     for (const category of categories) {
@@ -108,44 +81,48 @@ serve(async (req) => {
           query = 'tech startup';
       }
       
-      const functionUrl = `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`;
-      console.log('Invoking function URL:', functionUrl);
-
-      // Invoke the fetch-and-generate-articles function 
-      const response = await fetch(
-        functionUrl,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            manualRun: false,
-            scheduled: true,
-            debug: true,
-            query: query,
-            targetCategory: category,
-            articlesNeeded: 3, // Generate 3 articles per category
-            useAI: true,
-            diagnostics: {
-              timestamp: new Date().toISOString(),
-              source: 'schedule-article-generation'
-            }
-          }),
-        }
-      );
+      console.log(`Generating content for category ${category} with query: ${query}`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to generate articles for ${category}. Status: ${response.status}`);
-        console.error('Error response:', errorText);
-      } else {
-        const result = await response.json();
-        console.log(`Successfully generated ${category} articles:`, result);
-        if (result.articles) {
-          successCount += result.articles.length;
+      try {
+        // Invoke the fetch-and-generate-articles function directly
+        const response = await fetch(
+          `${SUPABASE_URL}/functions/v1/fetch-and-generate-articles`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              manualRun: false,
+              scheduled: true,
+              debug: true,
+              query: query,
+              targetCategory: category,
+              articlesNeeded: 3, // Generate 3 articles per category
+              useAI: true
+            }),
+          }
+        );
+        
+        // Handle response
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Failed to generate articles for ${category}. Status: ${response.status}`);
+          console.error('Error response:', errorText);
+          errorCount++;
+        } else {
+          const result = await response.json();
+          console.log(`Successfully generated ${category} articles:`, 
+            result.articles ? `${result.articles.length} articles` : 'No articles data');
+          
+          if (result.articles) {
+            successCount += result.articles.length;
+          }
         }
+      } catch (categoryError) {
+        console.error(`Error processing category ${category}:`, categoryError);
+        errorCount++;
       }
       
       // Delay between requests to avoid rate limiting
@@ -154,13 +131,15 @@ serve(async (req) => {
 
     console.log('=== SCHEDULED ARTICLE GENERATION COMPLETE ===');
     console.log(`Total articles generated: ${successCount}`);
+    console.log(`Total errors: ${errorCount}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Successfully scheduled article generation',
         timestamp: new Date().toISOString(),
-        articlesGenerated: successCount
+        articlesGenerated: successCount,
+        errorsEncountered: errorCount
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -170,20 +149,10 @@ serve(async (req) => {
     console.error('=== SCHEDULED ARTICLE GENERATION FAILED ===');
     console.error('Error in schedule-article-generation:', error);
     
-    // Get detailed error information
-    const errorDetails = {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    };
-    
-    console.error('Error details:', errorDetails);
-
     return new Response(
       JSON.stringify({
         success: false,
         error: error.message,
-        errorDetails,
         timestamp: new Date().toISOString(),
       }),
       {
