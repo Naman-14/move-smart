@@ -11,31 +11,21 @@ import ArticleCarousel from '@/components/ArticleCarousel';
 import ContentFilter, { ContentFilters } from '@/components/ContentFilter';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { Article } from '@/hooks/useArticles';
 
-interface Article {
-  id: string;
-  title: string;
-  excerpt?: string;
-  summary: string;
-  imageUrl?: string;
-  cover_image_url: string;
-  date?: string;
-  created_at: string;
-  category: string;
-  slug: string;
-}
-
-const mockFeaturedArticle = {
+const mockFeaturedArticle: Article = {
   id: 'featured-001',
   title: 'How Notion Disrupted the Productivity Software Market',
-  excerpt: 'A deep dive into Notion\'s meteoric rise, innovative product strategy, and how it captured a devoted user base in a crowded market.',
   summary: 'A deep dive into Notion\'s meteoric rise, innovative product strategy, and how it captured a devoted user base in a crowded market.',
-  imageUrl: 'https://images.unsplash.com/photo-1552664730-d307ca884978?q=80&w=2940&fit=crop&auto=format',
+  content: '<p>This is the detailed content of the article about Notion.</p>',
   cover_image_url: 'https://images.unsplash.com/photo-1552664730-d307ca884978?q=80&w=2940&fit=crop&auto=format',
-  date: 'April 15, 2023',
   created_at: '2023-04-15T12:00:00Z',
+  category: 'case-studies',
   slug: 'notion-disruption',
-  category: 'Case Study'
+  visible: true,
+  reading_time: 5,
+  author: 'MoveSmart',
+  tags: ['productivity', 'saas', 'startup']
 };
 
 const mockArticles: Article[] = [
@@ -43,28 +33,43 @@ const mockArticles: Article[] = [
     id: 'article-001',
     title: 'OpenAI Secures $2B in New Funding Round',
     summary: 'The AI research lab behind ChatGPT has raised additional funding to accelerate product development and expand operations globally.',
+    content: '<p>Content about OpenAI\'s funding round.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-04-10T12:00:00Z',
-    category: 'Funding News',
-    slug: 'openai-funding'
+    category: 'funding',
+    slug: 'openai-funding',
+    visible: true,
+    reading_time: 3,
+    author: 'MoveSmart',
+    tags: ['ai', 'funding', 'tech']
   },
   {
     id: 'article-002',
     title: 'The Rise of Vertical SaaS: Industry-Specific Software Solutions',
     summary: 'How specialized software is creating massive value by catering to industry-specific needs, unlike horizontal solutions.',
+    content: '<p>Content about vertical SaaS.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-04-05T12:00:00Z', 
-    category: 'Tech Trends',
-    slug: 'vertical-saas'
+    category: 'startups',
+    slug: 'vertical-saas',
+    visible: true,
+    reading_time: 4,
+    author: 'MoveSmart',
+    tags: ['saas', 'startup', 'tech']
   },
   {
     id: 'article-003',
     title: 'FinTech Revolution in Emerging Markets',
     summary: 'How innovative payment solutions are transforming financial inclusion in regions with limited banking infrastructure.',
+    content: '<p>Content about FinTech in emerging markets.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1613243555988-441166d4d6fd?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-03-28T12:00:00Z',
-    category: 'Market Analysis',
-    slug: 'fintech-emerging-markets'
+    category: 'fintech',
+    slug: 'fintech-emerging-markets',
+    visible: true,
+    reading_time: 6,
+    author: 'MoveSmart',
+    tags: ['fintech', 'emerging-markets', 'payments']
   }
 ];
 
@@ -73,37 +78,57 @@ const trendingArticles: Article[] = [
     id: 'trending-001',
     title: 'How Plaid Built the Fintech API Infrastructure',
     summary: 'A deep dive into how Plaid created the essential infrastructure that powers thousands of fintech applications.',
+    content: '<p>Content about Plaid\'s infrastructure.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-04-18T12:00:00Z',
-    category: 'Tech Deep Dive',
-    slug: 'plaid-api-infrastructure'
+    category: 'fintech',
+    slug: 'plaid-api-infrastructure',
+    visible: true,
+    reading_time: 5,
+    author: 'MoveSmart',
+    tags: ['fintech', 'api', 'infrastructure']
   },
   {
     id: 'trending-002',
     title: 'The Tech Behind Stripe\'s Success Story',
     summary: 'How Stripe revolutionized online payments and became the backbone of internet commerce.',
+    content: '<p>Content about Stripe\'s technology.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-04-14T12:00:00Z',
-    category: 'Case Study',
-    slug: 'stripe-success-story'
+    category: 'case-studies',
+    slug: 'stripe-success-story',
+    visible: true,
+    reading_time: 4,
+    author: 'MoveSmart',
+    tags: ['payments', 'case-study', 'fintech']
   },
   {
     id: 'trending-003',
     title: 'Figma\'s Path to a $20B Valuation',
     summary: 'The design tool that changed collaboration and caught Adobe\'s attention with a revolutionary product approach.',
+    content: '<p>Content about Figma\'s path to valuation.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-04-08T12:00:00Z',
-    category: 'Growth Analysis',
-    slug: 'figma-valuation'
+    category: 'funding',
+    slug: 'figma-valuation',
+    visible: true,
+    reading_time: 3,
+    author: 'MoveSmart',
+    tags: ['design', 'valuation', 'acquisition']
   },
   {
     id: 'trending-004',
     title: 'How Discord Built a Community-First Platform',
     summary: 'The evolution of Discord from gaming chat to a versatile community platform worth billions.',
+    content: '<p>Content about Discord\'s community-first approach.</p>',
     cover_image_url: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?q=80&w=2940&auto=format&fit=crop',
     created_at: '2023-04-02T12:00:00Z',
-    category: 'Community Building',
-    slug: 'discord-community'
+    category: 'case-studies',
+    slug: 'discord-community',
+    visible: true,
+    reading_time: 4,
+    author: 'MoveSmart',
+    tags: ['community', 'platform', 'gaming']
   }
 ];
 

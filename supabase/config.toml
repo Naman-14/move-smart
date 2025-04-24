@@ -34,8 +34,8 @@ enabled = true
 [functions]
 [functions.fetch-and-generate-articles]
 verify_jwt = false
+schedule = "0 * * * *"  # Run every hour at minute 0
 
 [functions.schedule-article-generation]
 verify_jwt = false
-schedule = "0 * * * *"
-
+schedule = "0 * * * *"  # Run every hour at minute 0

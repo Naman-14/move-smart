@@ -1,309 +1,331 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
-import { AlertCircle, RefreshCw, CheckCircle, Play } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { AlertTriangle, Check, Clock, RefreshCw, X } from 'lucide-react';
 import { triggerArticleGeneration } from '@/utils/articleGeneration';
+import { format, formatDistanceToNow } from 'date-fns';
 
 const AdminControls = () => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [lastGenerationResult, setLastGenerationResult] = useState<any>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [systemStatus, setSystemStatus] = useState<{
-    articles: number;
-    lastGeneration: string | null;
-    cronStatus: 'active' | 'inactive' | 'error' | 'unknown';
-    dbStatus: 'connected' | 'error' | 'unknown';
-  }>({
-    articles: 0,
-    lastGeneration: null,
-    cronStatus: 'unknown',
-    dbStatus: 'unknown',
-  });
-  
-  const { toast } = useToast();
+  const [fetchLogs, setFetchLogs] = useState([]);
+  const [errorLogs, setErrorLogs] = useState([]);
+  const [cronLogs, setCronLogs] = useState([]);
+  const [fetchingLogs, setFetchingLogs] = useState(false);
 
-  // Function to check system status
-  const checkSystemStatus = async () => {
-    setIsLoadingStatus(true);
-    
-    try {
-      // Check article count
-      const { count: articleCount } = await supabase
-        .from('articles')
-        .select('*', { count: 'exact', head: true });
-      
-      // Check last generation time
-      const { data: lastRun } = await supabase
-        .from('cron_run_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      // Check DB status through a simple query
-      const { data: dbCheck, error: dbError } = await supabase
-        .from('cron_run_logs')
-        .select('count(*)', { count: 'exact' });
-      
-      // Update state with results
-      setSystemStatus({
-        articles: articleCount || 0,
-        lastGeneration: lastRun?.[0]?.completed_at || null,
-        cronStatus: lastRun?.[0]?.status === 'error' ? 'error' : 'active',
-        dbStatus: dbError ? 'error' : 'connected',
-      });
-      
-      toast({
-        title: "Status check complete",
-        description: "System status has been updated.",
-      });
-    } catch (error) {
-      console.error('Error checking system status:', error);
-      toast({
-        variant: "destructive",
-        title: "Error checking status",
-        description: "Could not retrieve system status information.",
-      });
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  };
-  
-  // Function to trigger article generation manually
   const handleGenerateArticles = async () => {
     setIsGenerating(true);
-    setLastGenerationResult(null);
-    
-    toast({
-      title: "Starting article generation",
-      description: "This may take a few minutes to complete.",
-    });
-    
     try {
-      const result = await triggerArticleGeneration();
-      console.log('Article generation result:', result);
-      setLastGenerationResult(result);
-      
       toast({
-        title: "Article generation complete",
-        description: `Generated ${result.articlesGenerated} new articles with ${result.errorsEncountered} errors.`,
-        variant: result.errorsEncountered > 0 ? "destructive" : "default",
+        title: "Starting article generation",
+        description: "This may take a minute to complete...",
       });
+
+      const result = await triggerArticleGeneration();
       
-      // Refresh status after generation
-      setTimeout(() => {
-        checkSystemStatus();
-      }, 2000);
+      if (result.success) {
+        toast({
+          title: "Articles generated successfully",
+          description: `Generated ${result.articlesGenerated} new articles.`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error generating articles",
+          description: result.error || "Unknown error occurred",
+        });
+      }
     } catch (error) {
-      console.error('Error generating articles:', error);
+      console.error("Error generating articles:", error);
       toast({
         variant: "destructive",
-        title: "Generation failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        title: "Error generating articles",
+        description: error.message || "Unknown error occurred",
       });
     } finally {
       setIsGenerating(false);
     }
   };
-  
-  // Function to check logs
-  const [logs, setLogs] = useState<any[]>([]);
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-  
-  const fetchLogs = async () => {
-    setIsLoadingLogs(true);
+
+  const loadLogs = async () => {
+    setFetchingLogs(true);
     try {
-      // Instead of querying a non-existent 'logs' table, let's use the 'cron_run_logs' table
-      // which appears to exist in the schema
-      const { data, error } = await supabase
+      // Get source_fetches logs
+      const { data: fetchesData, error: fetchesError } = await supabase
+        .from('source_fetches')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (fetchesError) {
+        console.error("Error fetching source_fetches:", fetchesError);
+      } else {
+        setFetchLogs(fetchesData || []);
+      }
+
+      // Get cron_run_logs
+      const { data: cronData, error: cronError } = await supabase
         .from('cron_run_logs')
         .select('*')
         .order('started_at', { ascending: false })
-        .limit(20);
-        
-      if (error) throw error;
-      setLogs(data || []);
+        .limit(10);
+
+      if (cronError) {
+        console.error("Error fetching cron_run_logs:", cronError);
+      } else {
+        setCronLogs(cronData || []);
+      }
+
+      // Get error logs
+      const { data: errorData, error: logError } = await supabase
+        .from('logs')
+        .select('*')
+        .eq('level', 'error')
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      if (logError) {
+        console.error("Error fetching logs:", logError);
+      } else {
+        setErrorLogs(errorData || []);
+      }
     } catch (error) {
-      console.error('Error fetching logs:', error);
+      console.error("Error loading logs:", error);
       toast({
         variant: "destructive",
-        title: "Could not fetch logs",
-        description: "There was an error retrieving system logs.",
+        title: "Error loading logs",
+        description: error.message,
       });
-      setLogs([]);
     } finally {
-      setIsLoadingLogs(false);
+      setFetchingLogs(false);
+    }
+  };
+
+  // Status badge color helper
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'default'; // Green
+      case 'error':
+        return 'destructive'; // Red
+      case 'started':
+        return 'secondary'; // Blue/purple
+      case 'partial_success':
+        return 'warning'; // Orange/Yellow
+      default:
+        return 'secondary';
     }
   };
 
   return (
-    <Card className="mb-8 border-orange-200 dark:border-orange-900 shadow-md">
-      <CardHeader className="bg-orange-50 dark:bg-orange-950/30">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-orange-700 dark:text-orange-400">Admin Controls</CardTitle>
-            <CardDescription>Manage content generation and system settings</CardDescription>
-          </div>
-          <Badge variant="outline" className={systemStatus.dbStatus === 'connected' ? 
-            'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' : 
-            'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800'
-          }>
-            {systemStatus.dbStatus === 'connected' ? 'System Online' : 'Check Connection'}
-          </Badge>
-        </div>
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle className="flex justify-between items-center">
+          <span>Admin Controls</span>
+          <Badge variant="outline">Development Only</Badge>
+        </CardTitle>
+        <CardDescription>
+          Use these controls to manage content generation and view logs.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="pt-4">
-        <Tabs defaultValue="status" className="w-full">
-          <TabsList className="grid grid-cols-3 mb-4">
-            <TabsTrigger value="status">System Status</TabsTrigger>
-            <TabsTrigger value="generation">Content Generation</TabsTrigger>
-            <TabsTrigger value="logs">Error Logs</TabsTrigger>
+
+      <CardContent className="space-y-4">
+        <div className="flex gap-4 mb-6">
+          <Button 
+            onClick={handleGenerateArticles} 
+            disabled={isGenerating}
+            className="relative"
+          >
+            {isGenerating ? 
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> 
+                Generating...
+              </> : 
+              <>
+                <Clock className="mr-2 h-4 w-4" /> 
+                Generate Articles
+              </>
+            }
+          </Button>
+
+          <Button 
+            variant="outline" 
+            onClick={loadLogs} 
+            disabled={fetchingLogs}
+          >
+            {fetchingLogs ? 
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> :
+              <RefreshCw className="mr-2 h-4 w-4" />
+            }
+            Refresh Logs
+          </Button>
+        </div>
+
+        <Tabs defaultValue="fetches">
+          <TabsList>
+            <TabsTrigger value="fetches">Source Fetches</TabsTrigger>
+            <TabsTrigger value="cron">Cron Jobs</TabsTrigger>
+            <TabsTrigger value="errors">Error Logs</TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="status" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 border rounded-md">
-                <h3 className="text-sm font-medium mb-2">Content Status</h3>
-                <div className="text-2xl font-bold">{systemStatus.articles}</div>
-                <div className="text-sm text-gray-500">Total Articles</div>
-              </div>
-              <div className="p-4 border rounded-md">
-                <h3 className="text-sm font-medium mb-2">Last Generation</h3>
-                <div className="text-lg font-medium">
-                  {systemStatus.lastGeneration ? 
-                    new Date(systemStatus.lastGeneration).toLocaleString() : 
-                    'Never or Unknown'}
-                </div>
-                <div className="flex items-center mt-1">
-                  {systemStatus.cronStatus === 'active' && (
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      CRON Active
-                    </Badge>
-                  )}
-                  {systemStatus.cronStatus === 'error' && (
-                    <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
-                      <AlertCircle className="w-3 h-3 mr-1" />
-                      CRON Error
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={checkSystemStatus}
-              disabled={isLoadingStatus}
-              className="w-full"
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
-              {isLoadingStatus ? 'Checking Status...' : 'Check System Status'}
-            </Button>
-          </TabsContent>
-          
-          <TabsContent value="generation">
-            <div className="space-y-4">
-              <div className="border rounded-md p-4">
-                <h3 className="font-medium mb-2">Manual Content Generation</h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Generate fresh articles for all categories using the Gemini API. 
-                  This may take several minutes.
-                </p>
-                
-                <Button 
-                  onClick={handleGenerateArticles} 
-                  disabled={isGenerating}
-                  className="w-full"
-                >
-                  <Play className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-pulse' : ''}`} />
-                  {isGenerating ? 'Generating Articles...' : 'Generate New Articles'}
-                </Button>
-                
-                {lastGenerationResult && (
-                  <div className="mt-4 p-3 text-sm border rounded-md bg-gray-50 dark:bg-gray-900">
-                    <div className="font-medium">Generation Results:</div>
-                    <div className="mt-1 space-y-1">
+
+          <TabsContent value="fetches" className="border rounded-md p-4 max-h-96 overflow-y-auto">
+            {fetchLogs.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No logs found. Click "Refresh Logs" to load data.</p>
+            ) : (
+              <div className="space-y-3">
+                {fetchLogs.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border rounded p-3 text-sm"
+                  >
+                    <div className="flex justify-between">
                       <div>
-                        Articles: {lastGenerationResult.articlesGenerated || 0} generated
+                        <Badge variant={getStatusColor(log.status)}>{log.status}</Badge>
+                        <span className="ml-2 font-medium">{log.query}</span>
                       </div>
+                      <div className="text-gray-500">
+                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex justify-between">
                       <div>
-                        Errors: {lastGenerationResult.errorsEncountered || 0} encountered
+                        <span>Source: {log.source}</span>
+                        {log.articles_generated && (
+                          <span className="ml-3">Articles: {log.articles_generated}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {format(new Date(log.created_at), 'MMM d, yyyy HH:mm:ss')}
                       </div>
                     </div>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
+            )}
           </TabsContent>
-          
-          <TabsContent value="logs">
-            <div className="space-y-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={fetchLogs}
-                disabled={isLoadingLogs}
-                className="w-full"
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingLogs ? 'animate-spin' : ''}`} />
-                {isLoadingLogs ? 'Loading Logs...' : 'Refresh Error Logs'}
-              </Button>
-              
-              <div className="border rounded-md overflow-hidden">
-                <div className="max-h-64 overflow-y-auto">
-                  {logs.length > 0 ? (
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Level</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Job</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Message</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                        {logs.map((log) => (
-                          <tr key={log.id}>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs">
-                              <Badge variant={
-                                log.status === 'error' ? 'destructive' : 
-                                log.status === 'inactive' ? 'secondary' : 
-                                'outline'
-                              }>
-                                {log.status || 'unknown'}
-                              </Badge>
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs">{log.job_name}</td>
-                            <td className="px-3 py-2 text-xs">{log.error_message || 'No error'}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs">
-                              {new Date(log.started_at).toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="p-4 text-center text-sm text-gray-500">
-                      {isLoadingLogs ? 
-                        "Loading logs..." : 
-                        "No logs found. Click 'Refresh Error Logs' to check for new entries."}
+
+          <TabsContent value="cron" className="border rounded-md p-4 max-h-96 overflow-y-auto">
+            {cronLogs.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No cron logs found. Click "Refresh Logs" to load data.</p>
+            ) : (
+              <div className="space-y-3">
+                {cronLogs.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border rounded p-3 text-sm"
+                  >
+                    <div className="flex justify-between">
+                      <div className="flex items-center">
+                        <Badge variant={getStatusColor(log.status)}>
+                          {log.status === 'completed' ? (
+                            <Check className="h-3 w-3 mr-1" />
+                          ) : log.status === 'error' ? (
+                            <X className="h-3 w-3 mr-1" />
+                          ) : log.status === 'started' ? (
+                            <Clock className="h-3 w-3 mr-1" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                          )}
+                          {log.status}
+                        </Badge>
+                        <span className="ml-2 font-medium">{log.job_name}</span>
+                      </div>
+                      <div className="text-gray-500">
+                        {log.completed_at ? (
+                          formatDistanceToNow(new Date(log.completed_at), { addSuffix: true })
+                        ) : (
+                          "Running..."
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+                    
+                    {log.error_message && (
+                      <div className="mt-2 text-red-500 bg-red-50 p-2 rounded text-xs">
+                        {log.error_message}
+                      </div>
+                    )}
+                    
+                    <div className="mt-2 flex justify-between text-xs text-gray-500">
+                      <div>
+                        Started: {format(new Date(log.started_at), 'MMM d, yyyy HH:mm:ss')}
+                      </div>
+                      {log.completed_at && (
+                        <div>
+                          Completed: {format(new Date(log.completed_at), 'MMM d, yyyy HH:mm:ss')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="errors" className="border rounded-md p-4 max-h-96 overflow-y-auto">
+            {errorLogs.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No error logs found. Click "Refresh Logs" to load data.</p>
+            ) : (
+              <div className="space-y-3">
+                {errorLogs.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border border-red-200 bg-red-50 rounded p-3 text-sm"
+                  >
+                    <div className="flex justify-between">
+                      <div>
+                        <Badge variant="destructive" className="font-bold">
+                          {log.level}
+                        </Badge>
+                        <Badge variant="outline" className="ml-2">
+                          {log.category}
+                        </Badge>
+                      </div>
+                      <div className="text-gray-500">
+                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 text-red-700">
+                      {log.message}
+                    </div>
+                    
+                    {log.details && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-gray-600 cursor-pointer">
+                          Show details
+                        </summary>
+                        <pre className="mt-1 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                          {JSON.stringify(log.details, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                    
+                    <div className="mt-2 text-xs text-gray-500">
+                      {format(new Date(log.created_at), 'MMM d, yyyy HH:mm:ss')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </CardContent>
-      <CardFooter className="bg-orange-50 dark:bg-orange-950/30 text-xs text-gray-500 flex justify-between items-center">
-        <span>Admin access only</span>
-        <span>{new Date().toLocaleDateString()}</span>
+
+      <CardFooter>
+        <p className="text-xs text-gray-500">
+          Note: Article generation will run automatically each hour via scheduled cron job.
+        </p>
       </CardFooter>
     </Card>
   );
