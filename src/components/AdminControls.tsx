@@ -117,10 +117,12 @@ const AdminControls = () => {
   const fetchLogs = async () => {
     setIsLoadingLogs(true);
     try {
+      // Instead of querying a non-existent 'logs' table, let's use the 'cron_run_logs' table
+      // which appears to exist in the schema
       const { data, error } = await supabase
-        .from('logs')
+        .from('cron_run_logs')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('started_at', { ascending: false })
         .limit(20);
         
       if (error) throw error;
@@ -260,7 +262,7 @@ const AdminControls = () => {
                       <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Level</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Job</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Message</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time</th>
                         </tr>
@@ -270,17 +272,17 @@ const AdminControls = () => {
                           <tr key={log.id}>
                             <td className="px-3 py-2 whitespace-nowrap text-xs">
                               <Badge variant={
-                                log.level === 'error' ? 'destructive' : 
-                                log.level === 'warning' ? 'warning' : 
-                                'secondary'
+                                log.status === 'error' ? 'destructive' : 
+                                log.status === 'inactive' ? 'secondary' : 
+                                'outline'
                               }>
-                                {log.level}
+                                {log.status || 'unknown'}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs">{log.category}</td>
-                            <td className="px-3 py-2 text-xs">{log.message}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-xs">{log.job_name}</td>
+                            <td className="px-3 py-2 text-xs">{log.error_message || 'No error'}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-xs">
-                              {new Date(log.created_at).toLocaleString()}
+                              {new Date(log.started_at).toLocaleString()}
                             </td>
                           </tr>
                         ))}
